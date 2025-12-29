@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251228-2100">
-    <title>Fazbear Surveillance - v12.0</title>
+    <meta name="version" content="20251228-2200">
+    <title>Fazbear Surveillance - v12.1</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
@@ -26,9 +26,6 @@
         #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3rem; color: #fff; text-shadow: 0 0 10px #fff; z-index: 20; }
         #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2rem; z-index: 20; text-shadow: 2px 2px #000; }
         
-        /* Overlays */
-        #signal-lost-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2rem; color: white; text-shadow: 0 0 10px red; display: none; z-index: 25; }
-        
         /* Sidebar */
         #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; overflow-y: auto; }
         .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
@@ -42,11 +39,11 @@
         .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 10px; }
         #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; }
 
-        /* 6 AM WIN SCREEN */
+        /* 6 AM CELEBRATION OVERLAY */
         #win-screen { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; z-index: 10000; color: #fff; flex-direction: column; 
-            align-items: center; justify-content: center; font-size: 5rem; font-weight: bold;
+            background: rgba(0,0,0,0.9); z-index: 10000; color: #fff; flex-direction: column; 
+            align-items: center; justify-content: center; font-weight: bold; text-align: center;
         }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
@@ -63,12 +60,15 @@
         </div>
     </div>
 
-    <!-- Win Screen -->
+    <!-- Win Screen (Now an Overlay) -->
     <div id="win-screen">
-        <div style="font-size: 2rem;">5:59 AM</div>
-        <div id="six-am-text" style="font-size: 8rem; margin: 20px 0;">6 AM</div>
-        <div style="font-size: 1.5rem; color: var(--fnaf-green);">GREAT JOB!</div>
-        <button onclick="location.reload()" style="width: auto; margin-top: 40px; padding: 10px 40px;">NEXT NIGHT</button>
+        <div style="font-size: 2rem; color: var(--fnaf-yellow);">5:59 AM</div>
+        <div style="font-size: 8rem; margin: 10px 0; text-shadow: 0 0 20px #fff;">6 AM</div>
+        <div style="font-size: 1.5rem; color: var(--fnaf-green); letter-spacing: 5px;">SUCCESSFUL SHIFT</div>
+        <div style="margin-top: 30px; display: flex; gap: 20px;">
+            <button onclick="closeWinScreen()" style="background: #444; color: white; width: auto; padding: 10px 30px;">STAY ON FEED</button>
+            <button onclick="location.reload()" style="background: var(--fnaf-red); color: white; width: auto; padding: 10px 30px;">REBOOT SYSTEM</button>
+        </div>
     </div>
 
     <!-- Monitor Interface -->
@@ -76,7 +76,6 @@
         <div id="screen">
             <div id="clock-display">12 AM</div>
             <div id="cam-label">OFFLINE</div>
-            <div id="signal-lost-text">SIGNAL LOST</div>
             <canvas id="static-canvas"></canvas>
             <video id="video-feed" autoplay playsinline></video>
         </div>
@@ -113,7 +112,7 @@
         let nightRunning = false;
         let startTime = null;
         let timerInterval = null;
-        let currentHour = 12; // 12 AM
+        let currentHour = 12;
 
         function toggleTimer() {
             if (!isMonitor) return;
@@ -121,9 +120,12 @@
             const btn = document.getElementById('timer-control-btn');
             
             if (nightRunning) {
+                // RESET EVERYTHING ON START
+                currentHour = 12;
+                document.getElementById('clock-display').innerText = "12 AM";
+                startTime = Date.now();
                 btn.innerText = "STOP NIGHT (F4)";
                 btn.classList.add('running');
-                startTime = Date.now();
                 timerInterval = setInterval(updateTimer, 1000);
             } else {
                 btn.innerText = "START NIGHT (F4)";
@@ -133,16 +135,28 @@
         }
 
         function updateTimer() {
-            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            const minutesElapsed = Math.floor(elapsed / 60);
+            if (!startTime) return;
             
-            // FNAF logic: 0-59s = 12AM, 60-119s = 1AM, etc.
-            let hour = 12;
-            if (minutesElapsed > 0) hour = minutesElapsed;
+            const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+            const minutesElapsed = Math.floor(elapsedSeconds / 60);
             
-            if (hour >= 6) {
+            // Fix: Calculate hour correctly
+            // 0-59s: 12 AM
+            // 60-119s: 1 AM ... 360s: 6 AM
+            let hour;
+            if (minutesElapsed === 0) {
+                hour = 12;
+            } else {
+                hour = minutesElapsed;
+            }
+            
+            // Check for Win Condition (6 AM)
+            if (minutesElapsed >= 6) {
                 hour = 6;
                 clearInterval(timerInterval);
+                nightRunning = false;
+                document.getElementById('timer-control-btn').innerText = "START NIGHT (F4)";
+                document.getElementById('timer-control-btn').classList.remove('running');
                 triggerWin();
             }
 
@@ -150,18 +164,19 @@
                 currentHour = hour;
                 const clockStr = `${currentHour} AM`;
                 document.getElementById('clock-display').innerText = clockStr;
-                // Sync to all phones
                 Object.values(activeConnections).forEach(c => c.send({ type: 'TIME_SYNC', time: clockStr }));
             }
         }
 
         function triggerWin() {
             document.getElementById('win-screen').style.display = 'flex';
-            // Also tell all phones it's 6 AM
             Object.values(activeConnections).forEach(c => c.send({ type: 'WIN' }));
         }
 
-        // F4 Keybind
+        function closeWinScreen() {
+            document.getElementById('win-screen').style.display = 'none';
+        }
+
         window.addEventListener('keydown', (e) => {
             if (e.key === 'F4') {
                 e.preventDefault();
@@ -178,8 +193,7 @@
                 canvas.width = window.innerWidth; canvas.height = window.innerHeight;
                 const idata = ctx.createImageData(canvas.width, canvas.height);
                 const buffer32 = new Uint32Array(idata.data.buffer);
-                const isLost = document.getElementById('signal-lost-text').style.display === 'block';
-                for (let i = 0; i < buffer32.length; i++) if (Math.random() < (isLost ? 0.8 : 0.5)) buffer32[i] = 0xffffffff;
+                for (let i = 0; i < buffer32.length; i++) if (Math.random() < 0.5) buffer32[i] = 0xffffffff;
                 ctx.putImageData(idata, 0, 0);
                 requestAnimationFrame(noise);
             }
@@ -192,7 +206,7 @@
             try {
                 monitorMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
                 monitorMicStream.getAudioTracks()[0].enabled = false;
-            } catch(e) { alert("Mic required for Intercom"); }
+            } catch(e) { console.log("Mic Denied"); }
 
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             peer = new Peer(ID_PREFIX + code);
@@ -207,18 +221,15 @@
             peer.on('call', (call) => {
                 call.answer(monitorMicStream);
                 call.on('stream', (stream) => {
-                    const existingNode = nodeData[call.peer];
+                    const label = `CAM-0${Object.keys(nodeData).length + 1}`;
                     stream.getAudioTracks().forEach(t => t.enabled = false);
-                    if (existingNode) {
-                        activeStreams[existingNode.label] = stream;
-                        existingNode.btn.classList.remove('lost');
-                    } else {
-                        const label = `CAM-0${Object.keys(nodeData).length + 1}`;
-                        activeStreams[label] = stream;
-                        const btn = createBtn(label, call.peer);
-                        nodeData[call.peer] = { label, btn };
-                        if (!currentActiveLabel) switchCam(label);
-                    }
+                    activeStreams[label] = stream;
+                    const btn = document.createElement('button');
+                    btn.className = 'cam-btn'; btn.id = 'btn-' + label; btn.innerText = "> " + label;
+                    btn.onclick = () => switchCam(label);
+                    document.getElementById('btn-container').appendChild(btn);
+                    nodeData[call.peer] = { label, btn };
+                    if (!currentActiveLabel) switchCam(label);
                 });
             });
 
@@ -226,59 +237,42 @@
                 activeConnections[conn.peer] = conn;
                 conn.on('open', () => {
                     conn.send({ type: 'ASSIGN', label: nodeData[conn.peer]?.label || "CAM-??" });
-                    // Sync current time immediately
                     conn.send({ type: 'TIME_SYNC', time: currentHour + " AM" });
                 });
                 conn.on('close', () => {
                     const data = nodeData[conn.peer];
-                    if (data) data.btn.classList.add('lost');
-                    if (currentActiveLabel === data?.label) showSignalLost(true);
+                    if (data) data.btn.style.opacity = "0.3";
+                    delete activeConnections[conn.peer];
                 });
             });
         }
 
         function startTalk() {
-            if (monitorMicStream) {
-                monitorMicStream.getAudioTracks()[0].enabled = true;
-                const btn = document.getElementById('talk-btn');
-                btn.classList.add('active'); btn.innerText = "TALKING...";
-            }
+            if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = true;
+            document.getElementById('talk-btn').classList.add('active');
+            document.getElementById('talk-btn').innerText = "TALKING...";
         }
         function stopTalk() {
-            if (monitorMicStream) {
-                monitorMicStream.getAudioTracks()[0].enabled = false;
-                const btn = document.getElementById('talk-btn');
-                btn.classList.remove('active'); btn.innerText = "HOLD TO TALK";
-            }
-        }
-
-        function createBtn(label, pId) {
-            const btn = document.createElement('button');
-            btn.className = 'cam-btn'; btn.id = 'btn-' + label; btn.innerText = "> " + label;
-            btn.onclick = () => switchCam(label);
-            document.getElementById('btn-container').appendChild(btn);
-            return btn;
+            if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = false;
+            document.getElementById('talk-btn').classList.remove('active');
+            document.getElementById('talk-btn').innerText = "HOLD TO TALK";
         }
 
         function switchCam(label) {
             currentActiveLabel = label;
-            const pId = Object.keys(nodeData).find(k => nodeData[k].label === label);
-            Object.keys(activeStreams).forEach(k => activeStreams[k].getAudioTracks().forEach(t => t.enabled = (k === label)));
-            if (!activeConnections[pId]) showSignalLost(true);
-            else {
-                showSignalLost(false);
-                document.getElementById('video-feed').srcObject = activeStreams[label];
-                Object.values(activeConnections).forEach(c => c.send({ type: 'WATCH', id: label }));
-            }
+            const video = document.getElementById('video-feed');
+            video.srcObject = activeStreams[label];
+            
+            Object.keys(activeStreams).forEach(k => {
+                activeStreams[k].getAudioTracks().forEach(t => t.enabled = (k === label));
+            });
+
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            if(nodeData[pId]) nodeData[pId].btn.classList.add('active');
-        }
-
-        function showSignalLost(lost) {
-            document.getElementById('video-feed').style.display = lost ? 'none' : 'block';
-            document.getElementById('signal-lost-text').style.display = lost ? 'block' : 'none';
-            document.getElementById('static-canvas').style.opacity = lost ? "0.5" : "0.08";
+            document.getElementById('btn-' + label).classList.add('active');
+            
+            const pId = Object.keys(nodeData).find(k => nodeData[k].label === label);
+            if(activeConnections[pId]) activeConnections[pId].send({ type: 'WATCH', id: label });
         }
 
         // --- CAMERA ROLE ---
@@ -304,7 +298,6 @@
                         if (data.type === 'ASSIGN') document.getElementById('my-node-label').innerText = "NODE: " + data.label;
                         if (data.type === 'TIME_SYNC') document.getElementById('phone-clock').innerText = data.time;
                         if (data.type === 'WIN') { 
-                            document.getElementById('camera-ui').style.display = 'none'; 
                             document.getElementById('win-screen').style.display = 'flex';
                         }
                         if (data.type === 'WATCH') {
