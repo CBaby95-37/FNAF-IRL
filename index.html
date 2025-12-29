@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fazbear Surveillance - Secure Link</title>
+    <title>Fazbear Surveillance - Advanced Link</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; }
+        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; }
         body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
         
         /* Setup Screen */
@@ -14,56 +14,46 @@
         .menu-box { border: 2px solid var(--fnaf-green); padding: 30px; background: rgba(0,20,0,0.4); text-align: center; width: 300px; z-index: 20; }
         input { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 80%; text-align: center; font-size: 1.2rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
-        button:hover { background: #fff; }
-
+        
         /* Monitor UI */
         #monitor-ui { display: none; grid-template-columns: 1fr 220px; height: 100vh; }
         #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
         #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
         
-        /* Watermark-Free Static Overlay */
-        #static-canvas { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            opacity: 0.08; pointer-events: none; z-index: 10; 
-        }
-
-        /* Scanlines & Visual Effects */
+        /* Static & Overlays */
+        #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; }
         .overlay { position: absolute; pointer-events: none; z-index: 12; }
-        #cam-label { top: 30px; left: 30px; font-size: 2.5rem; text-shadow: 2px 2px #000; font-weight: bold; }
+        #cam-label { top: 30px; left: 30px; font-size: 2.5rem; text-shadow: 2px 2px #000; }
         #session-code-display { bottom: 20px; left: 20px; font-size: 1.2rem; background: rgba(0,0,0,0.7); padding: 5px 10px; border: 1px solid var(--fnaf-green); }
         
-        /* CRT Scanlines */
-        #screen::after {
-            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
-            z-index: 15; background-size: 100% 3px, 3px 100%;
-        }
-
-        /* Sidebar & Buttons */
+        /* Sidebar */
         #sidebar { background: #111; padding: 15px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; }
-        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; transition: 0.2s; }
-        .cam-btn:hover { background: #333; }
-        .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; box-shadow: 0 0 10px var(--fnaf-red); }
-        #no-cams-msg { color: #555; text-align: center; margin-top: 50px; font-style: italic; font-size: 0.8rem; }
+        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
+        .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
+
+        /* --- CAMERA NODE UI --- */
+        #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; }
+        #node-info { text-align: center; margin-bottom: 20px; }
+        .watched-indicator { color: var(--fnaf-red); font-size: 2rem; font-weight: bold; visibility: hidden; animation: blink 1s infinite; }
+        #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; cursor: pointer; }
+        #stealth-screen p { color: #111; font-size: 0.6rem; margin: 10px; }
+
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <!-- Setup Screen -->
+    <!-- SETUP -->
     <div id="setup">
-        <h1 style="letter-spacing: 10px; text-shadow: 0 0 15px var(--fnaf-green);">FAZBEAR SURVEILLANCE</h1>
-        <div class="menu-box">
-            <button onclick="initMonitor()">ACT AS MONITOR</button>
-            <p style="font-size: 0.7rem; opacity: 0.7; margin-top: 10px;">GENERATES A 6-DIGIT OFFICE CODE</p>
-        </div>
+        <h1 style="letter-spacing: 5px;">FAZBEAR SURVEILLANCE</h1>
+        <div class="menu-box"><button onclick="initMonitor()">ACT AS MONITOR</button></div>
         <div class="menu-box">
             <input type="number" id="join-code" placeholder="6-DIGIT CODE">
             <button onclick="initCamera()" style="background: #444; color: white;">ACT AS CAMERA</button>
         </div>
     </div>
 
-    <!-- Monitor Interface -->
+    <!-- MONITOR INTERFACE -->
     <div id="monitor-ui">
         <div id="screen">
             <div id="cam-label" class="overlay">OFFLINE</div>
@@ -72,30 +62,42 @@
             <video id="video-feed" autoplay playsinline muted></video>
         </div>
         <div id="sidebar">
-            <h3 style="text-align:center; border-bottom:1px solid #333; padding-bottom:10px; margin-bottom: 5px;">MAP NODES</h3>
-            <div id="btn-container">
-                <div id="no-cams-msg">WAITING FOR CAMERA NODES...</div>
-            </div>
+            <h3 style="text-align:center;">MAP NODES</h3>
+            <div id="btn-container"></div>
         </div>
+    </div>
+
+    <!-- CAMERA NODE INTERFACE -->
+    <div id="camera-ui">
+        <div id="node-info">
+            <h2 id="my-assigned-label">ID: PENDING</h2>
+            <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
+            <p>DO NOT TURN OFF SCREEN MANUALLY</p>
+            <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white;">ENABLE STEALTH MODE (FAKE OFF)</button>
+        </div>
+    </div>
+
+    <!-- Stealth Mode Overlay (The "Fake Off" screen) -->
+    <div id="stealth-screen" onclick="disableStealth()">
+        <p>Stealth active. Tap anywhere to exit.</p>
     </div>
 
     <script>
         let peer = null;
         let activeStreams = {};
+        let cameraConnections = []; // To send status back to phones
+        let myLabel = "UNKNOWN";
         const ID_PREFIX = "fnaf-system-";
+        let wakeLock = null;
 
-        // --- NOISE GENERATOR (Watermark Free) ---
+        // --- SHARED: Static Noise Generator ---
         const canvas = document.getElementById('static-canvas');
         const ctx = canvas.getContext('2d');
-        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        window.onresize = resize; resize();
-
         function noise() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
             const idata = ctx.createImageData(canvas.width, canvas.height);
             const buffer32 = new Uint32Array(idata.data.buffer);
-            for (let i = 0; i < buffer32.length; i++) {
-                if (Math.random() < 0.5) buffer32[i] = 0xffffffff;
-            }
+            for (let i = 0; i < buffer32.length; i++) if (Math.random() < 0.5) buffer32[i] = 0xffffffff;
             ctx.putImageData(idata, 0, 0);
             requestAnimationFrame(noise);
         }
@@ -105,77 +107,91 @@
         function initMonitor() {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             peer = new Peer(ID_PREFIX + code);
-
-            peer.on('open', (id) => {
+            peer.on('open', () => {
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('monitor-ui').style.display = 'grid';
                 document.getElementById('session-code-display').innerText = `CODE: ${code}`;
             });
 
+            // Receive call (video) and connection (data)
             peer.on('call', (call) => {
-                call.answer(); 
-                call.on('stream', (remoteStream) => {
-                    handleNewCamera(call.peer, remoteStream);
+                call.answer();
+                call.on('stream', (stream) => {
+                    const label = `CAM-0${Object.keys(activeStreams).length + 1}`;
+                    activeStreams[label] = stream;
+                    addCamButton(label, call.peer);
                 });
             });
 
-            peer.on('error', (err) => {
-                if(err.type === 'unavailable-id') location.reload();
+            peer.on('connection', (conn) => {
+                cameraConnections.push(conn);
+                conn.on('open', () => {
+                    // Tell the phone what its label is
+                    const label = `CAM-0${cameraConnections.length}`;
+                    conn.send({ type: 'ASSIGN_LABEL', label: label });
+                });
             });
         }
 
-        function handleNewCamera(peerId, stream) {
-            const camId = `CAM-0${Object.keys(activeStreams).length + 1}`;
-            activeStreams[camId] = stream;
-
-            const msg = document.getElementById('no-cams-msg');
-            if(msg) msg.remove();
-
+        function addCamButton(label, peerId) {
             const btn = document.createElement('button');
             btn.className = 'cam-btn';
-            btn.id = 'btn-' + camId;
-            btn.innerText = `> ${camId}`;
-            btn.onclick = () => switchCam(camId);
+            btn.id = 'btn-' + label;
+            btn.innerText = `> ${label}`;
+            btn.onclick = () => {
+                switchCam(label);
+                // Inform all cameras who is being watched
+                cameraConnections.forEach(c => c.send({ type: 'ACTIVE_CAM', activeId: label }));
+            };
             document.getElementById('btn-container').appendChild(btn);
+            if(Object.keys(activeStreams).length === 1) switchCam(label);
+        }
 
-            if(Object.keys(activeStreams).length === 1) switchCam(camId);
+        function switchCam(id) {
+            document.getElementById('video-feed').srcObject = activeStreams[id];
+            document.getElementById('cam-label').innerText = id;
+            document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + id).classList.add('active');
+            document.getElementById('static-canvas').style.opacity = "0.7";
+            setTimeout(() => document.getElementById('static-canvas').style.opacity = "0.08", 400);
         }
 
         // --- CAMERA LOGIC ---
         async function initCamera() {
             const code = document.getElementById('join-code').value.trim();
-            if(code.length !== 6) return alert("Enter 6-digit code.");
+            if(code.length !== 6) return alert("Invalid Code");
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
-                    audio: false 
-                });
+                // Request Wake Lock to prevent screen sleep
+                if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
 
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 peer = new Peer();
-                peer.on('open', () => {
+                peer.on('open', (id) => {
+                    document.getElementById('setup').style.display = 'none';
+                    document.getElementById('camera-ui').style.display = 'flex';
+                    
+                    // 1. Call Monitor (Video)
                     peer.call(ID_PREFIX + code, stream);
-                    alert("NODE CONNECTED. Do not close this tab.");
+                    // 2. Connect to Monitor (Data)
+                    const conn = peer.connect(ID_PREFIX + code);
+                    
+                    conn.on('data', (data) => {
+                        if(data.type === 'ASSIGN_LABEL') {
+                            myLabel = data.label;
+                            document.getElementById('my-assigned-label').innerText = `ID: ${myLabel}`;
+                        }
+                        if(data.type === 'ACTIVE_CAM') {
+                            const isWatched = (data.activeId === myLabel);
+                            document.getElementById('watched-dot').style.visibility = isWatched ? 'visible' : 'hidden';
+                        }
+                    });
                 });
-            } catch (err) {
-                alert("CAMERA ERROR: Check permissions.");
-            }
+            } catch (err) { alert("Camera Error or Permission Denied"); }
         }
 
-        function switchCam(id) {
-            const video = document.getElementById('video-feed');
-            const staticOverlay = document.getElementById('static-canvas');
-            
-            document.getElementById('cam-label').innerText = id;
-            document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn-' + id).classList.add('active');
-
-            video.srcObject = activeStreams[id];
-            
-            // Glitch Effect (Stronger static during transition)
-            staticOverlay.style.opacity = "0.7";
-            setTimeout(() => staticOverlay.style.opacity = "0.08", 350);
-        }
+        function enableStealth() { document.getElementById('stealth-screen').style.display = 'block'; }
+        function disableStealth() { document.getElementById('stealth-screen').style.display = 'none'; }
     </script>
 </body>
 </html>
