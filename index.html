@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fazbear Surveillance - v3.0 Disconnect Detection</title>
+    <title>Fazbear Surveillance - Stealth v4.0</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-grey: #333; }
+        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; }
         body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
         
         /* Setup */
@@ -29,14 +29,19 @@
         
         /* Sidebar */
         #sidebar { background: #111; padding: 15px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; }
-        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; margin-bottom: 5px; }
+        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
         .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
-        .cam-btn.lost { color: #666; border-color: #444; background: #111; pointer-events: none; }
+        .cam-btn.lost { color: #444; border-color: #222; cursor: default; }
 
-        /* Camera Node UI */
+        /* Camera UI */
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
-        .watched-indicator { color: var(--fnaf-red); font-size: 2rem; font-weight: bold; visibility: hidden; animation: blink 1s infinite; margin: 20px; }
-        #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; cursor: pointer; }
+        .watched-indicator { color: var(--fnaf-red); font-size: 1.5rem; font-weight: bold; visibility: hidden; animation: blink 1s infinite; margin: 20px; }
+        
+        /* Stealth Overlay */
+        #stealth-screen { 
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            background: #000; z-index: 9999; cursor: pointer; 
+        }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
@@ -44,7 +49,7 @@
 <body>
 
     <div id="setup">
-        <h1>FAZBEAR SURVEILLANCE</h1>
+        <h1 style="letter-spacing: 5px;">FAZBEAR SURVEILLANCE</h1>
         <div class="menu-box"><button onclick="initMonitor()">ACT AS MONITOR</button></div>
         <div class="menu-box">
             <input type="number" id="join-code" placeholder="6-DIGIT CODE">
@@ -67,23 +72,23 @@
     </div>
 
     <div id="camera-ui">
-        <h2 id="my-assigned-label">CONNECTING...</h2>
-        <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
-        <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%;">STEALTH MODE (FAKE OFF)</button>
-        <p style="font-size: 0.7rem; margin-top: 20px;">Keep browser open. Signal is live.</p>
+        <h2 id="my-assigned-label">NODE: ...</h2>
+        <div id="watched-dot" class="watched-indicator">● LIVE FEED ACTIVE</div>
+        <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 20px;">ENABLE STEALTH (BLACKOUT)</button>
+        <p style="font-size: 0.6rem; margin-top: 30px; opacity: 0.5;">Screen will go black & fullscreen.<br>Tap screen to wake up.</p>
     </div>
 
     <div id="stealth-screen" onclick="disableStealth()"></div>
 
     <script>
         let peer = null;
-        let activeStreams = {};      // Stores MediaStream by Label
-        let activeConnections = {};  // Stores DataConnection by PeerID
-        let peerToLabelMap = {};     // Maps PeerID to CAM-0X
+        let activeStreams = {};
+        let activeConnections = {};
+        let peerToLabelMap = {};
         let currentActiveLabel = null;
         const ID_PREFIX = "fnaf-system-";
 
-        // --- STATIC GENERATOR ---
+        // --- STATIC NOISE ---
         const canvas = document.getElementById('static-canvas');
         const ctx = canvas.getContext('2d');
         function noise() {
@@ -91,27 +96,21 @@
             const idata = ctx.createImageData(canvas.width, canvas.height);
             const buffer32 = new Uint32Array(idata.data.buffer);
             const isLost = document.getElementById('signal-lost-text').style.display === 'block';
-            for (let i = 0; i < buffer32.length; i++) {
-                // If signal lost, make static more "aggressive"
-                if (Math.random() < (isLost ? 0.7 : 0.5)) buffer32[i] = 0xffffffff;
-            }
+            for (let i = 0; i < buffer32.length; i++) if (Math.random() < (isLost ? 0.8 : 0.5)) buffer32[i] = 0xffffffff;
             ctx.putImageData(idata, 0, 0);
             requestAnimationFrame(noise);
         }
         noise();
 
-        // --- MONITOR LOGIC ---
+        // --- MONITOR ---
         function initMonitor() {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             peer = new Peer(ID_PREFIX + code);
-            
             peer.on('open', () => {
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('monitor-ui').style.display = 'grid';
                 document.getElementById('session-code-display').innerText = `CODE: ${code}`;
             });
-
-            // Handle Video Stream
             peer.on('call', (call) => {
                 call.answer();
                 call.on('stream', (stream) => {
@@ -121,18 +120,13 @@
                     createCamButton(label);
                 });
             });
-
-            // Handle Data Connection (to detect disconnects)
             peer.on('connection', (conn) => {
                 activeConnections[conn.peer] = conn;
-                
                 conn.on('open', () => {
                     const label = peerToLabelMap[conn.peer] || "CAM-??";
                     conn.send({ type: 'ASSIGN_LABEL', label: label });
                 });
-
                 conn.on('close', () => handleDisconnect(conn.peer));
-                conn.on('error', () => handleDisconnect(conn.peer));
             });
         }
 
@@ -140,7 +134,7 @@
             const btn = document.createElement('button');
             btn.className = 'cam-btn';
             btn.id = 'btn-' + label;
-            btn.innerText = `> ${label} [LIVE]`;
+            btn.innerText = `> ${label}`;
             btn.onclick = () => switchCam(label);
             document.getElementById('btn-container').appendChild(btn);
             if(!currentActiveLabel) switchCam(label);
@@ -149,96 +143,79 @@
         function handleDisconnect(peerId) {
             const label = peerToLabelMap[peerId];
             if (!label) return;
-
-            // Update UI Button
             const btn = document.getElementById('btn-' + label);
-            if (btn) {
-                btn.classList.add('lost');
-                btn.innerText = `> ${label} [LOST]`;
-            }
-
-            // If we are currently watching the dropped cam
-            if (currentActiveLabel === label) {
-                showSignalLost(true);
-            }
-            
+            if (btn) { btn.classList.add('lost'); btn.innerText = `> ${label} [OFFLINE]`; }
+            if (currentActiveLabel === label) showSignalLost(true);
             delete activeConnections[peerId];
         }
 
         function showSignalLost(isLost) {
-            const video = document.getElementById('video-feed');
-            const lostText = document.getElementById('signal-lost-text');
-            const static = document.getElementById('static-canvas');
-
-            if (isLost) {
-                video.style.display = 'none';
-                lostText.style.display = 'block';
-                static.style.opacity = "0.4"; // Heavy static
-            } else {
-                video.style.display = 'block';
-                lostText.style.display = 'none';
-                static.style.opacity = "0.08";
-            }
+            document.getElementById('video-feed').style.display = isLost ? 'none' : 'block';
+            document.getElementById('signal-lost-text').style.display = isLost ? 'block' : 'none';
+            document.getElementById('static-canvas').style.opacity = isLost ? "0.5" : "0.08";
         }
 
         function switchCam(label) {
             currentActiveLabel = label;
-            
-            // Check if this label is currently connected
             const peerId = Object.keys(peerToLabelMap).find(key => peerToLabelMap[key] === label);
-            
             if (!activeConnections[peerId]) {
                 showSignalLost(true);
             } else {
                 showSignalLost(false);
                 document.getElementById('video-feed').srcObject = activeStreams[label];
-                // Update "Watched" state on phones
                 Object.values(activeConnections).forEach(c => c.send({ type: 'ACTIVE_CAM', activeId: label }));
             }
-
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            const activeBtn = document.getElementById('btn-' + label);
-            if(activeBtn) activeBtn.classList.add('active');
+            document.getElementById('btn-' + label).classList.add('active');
         }
 
-        // --- CAMERA LOGIC ---
+        // --- CAMERA ---
         async function initCamera() {
             const code = document.getElementById('join-code').value.trim();
-            if(code.length !== 6) return alert("Code must be 6 digits.");
-
+            if(code.length !== 6) return;
             try {
                 if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                
                 peer = new Peer();
                 peer.on('open', () => {
                     document.getElementById('setup').style.display = 'none';
                     document.getElementById('camera-ui').style.display = 'flex';
-                    
                     peer.call(ID_PREFIX + code, stream);
                     const conn = peer.connect(ID_PREFIX + code);
-                    
                     conn.on('data', (data) => {
-                        if(data.type === 'ASSIGN_LABEL') {
-                            document.getElementById('my-assigned-label').innerText = `NODE: ${data.label}`;
-                        }
+                        if(data.type === 'ASSIGN_LABEL') document.getElementById('my-assigned-label').innerText = `NODE: ${data.label}`;
                         if(data.type === 'ACTIVE_CAM') {
                             const isWatched = (data.activeId === document.getElementById('my-assigned-label').innerText.split(': ')[1]);
                             document.getElementById('watched-dot').style.visibility = isWatched ? 'visible' : 'hidden';
                         }
                     });
-
-                    conn.on('close', () => {
-                        alert("Connection to Monitor lost. Refresh to reconnect.");
-                        location.reload();
-                    });
                 });
-            } catch (err) { alert("Camera access denied."); }
+            } catch (err) { alert("Camera Denied"); }
         }
 
-        function enableStealth() { document.getElementById('stealth-screen').style.display = 'block'; }
-        function disableStealth() { document.getElementById('stealth-screen').style.display = 'none'; }
+        // --- FULLSCREEN & STEALTH ---
+        function enableStealth() {
+            const doc = document.documentElement;
+            if (doc.requestFullscreen) doc.requestFullscreen();
+            else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
+            else if (doc.msRequestFullscreen) doc.msRequestFullscreen();
+            
+            document.getElementById('stealth-screen').style.display = 'block';
+        }
+
+        function disableStealth() {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            else if (document.msExitFullscreen) document.msExitFullscreen();
+
+            document.getElementById('stealth-screen').style.display = 'none';
+        }
+
+        // Auto-hide stealth if user exits fullscreen using hardware buttons
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) document.getElementById('stealth-screen').style.display = 'none';
+        });
     </script>
 </body>
 </html>
