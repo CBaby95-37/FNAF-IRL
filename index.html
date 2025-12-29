@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251228-2400">
-    <title>Fazbear Surveillance - v13.0 Bonnie AI</title>
+    <meta name="version" content="20251228-2500">
+    <title>Fazbear Surveillance - v13.1</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
@@ -31,19 +31,20 @@
         }
 
         /* HUD */
-        #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3rem; color: #fff; z-index: 20; }
-        #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2rem; z-index: 20; }
+        #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3rem; color: #fff; z-index: 20; text-shadow: 0 0 10px #fff; }
+        #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2rem; z-index: 20; text-shadow: 2px 2px #000; }
 
         /* Settings Overlay */
         #settings-overlay {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #111; border: 2px solid var(--fnaf-blue); padding: 25px; z-index: 11000; width: 320px;
+            box-shadow: 0 0 20px var(--fnaf-blue);
         }
 
         /* Sidebar */
         #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; overflow-y: auto; }
         .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
-        .cam-btn.active { background: var(--fnaf-red); color: #fff; }
+        .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
         
         #win-screen { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -60,7 +61,7 @@
 <body>
 
     <div id="setup">
-        <h1>FAZBEAR SURVEILLANCE</h1>
+        <h1 style="letter-spacing: 5px;">FAZBEAR SURVEILLANCE</h1>
         <div class="menu-box"><button onclick="initMonitor()">ACT AS MONITOR</button></div>
         <div class="menu-box">
             <input type="number" id="join-code" placeholder="6-DIGIT CODE">
@@ -77,6 +78,7 @@
             <option value="manual">MANUAL (PLAYER)</option>
             <option value="robot">ROBOT AI (AUTO)</option>
         </select>
+        <br><br>
         <label>AI DIFFICULTY (1-20):</label>
         <input type="number" id="setting-bonnie-ai" value="5" min="0" max="20">
         <button onclick="closeSettings()" style="background: var(--fnaf-blue); color: white; margin-top: 10px;">SAVE & EXIT</button>
@@ -84,8 +86,8 @@
 
     <!-- Win Screen -->
     <div id="win-screen">
-        <div style="font-size: 8rem;">6 AM</div>
-        <button onclick="location.reload()" style="width: auto; padding: 10px 40px;">REBOOT</button>
+        <div style="font-size: 8rem; text-shadow: 0 0 20px #fff;">6 AM</div>
+        <button onclick="location.reload()" style="width: auto; padding: 10px 40px;">REBOOT SYSTEM</button>
     </div>
 
     <!-- Monitor UI -->
@@ -94,11 +96,12 @@
             <div id="clock-display">12 AM</div>
             <div id="cam-label">OFFLINE</div>
             <canvas id="static-canvas"></canvas>
-            <img id="bonnie-overlay" src="textures/animatronics/bonnie.png" alt="Bonnie">
+            <!-- UPDATED PATH HERE -->
+            <img id="bonnie-overlay" src="textures/bonnie.png" alt="Bonnie">
             <video id="video-feed" autoplay playsinline></video>
         </div>
         <div id="sidebar">
-            <button onclick="openSettings()" style="background: #333; color: var(--fnaf-blue); font-size: 0.7rem;">SETTINGS</button>
+            <button onclick="openSettings()" style="background: #333; color: var(--fnaf-blue); font-size: 0.7rem; border: 1px solid var(--fnaf-blue);">SYSTEM SETTINGS</button>
             <div id="btn-container"></div>
             <button id="timer-control-btn" onclick="toggleTimer()">START NIGHT (F4)</button>
             <button id="talk-btn" onmousedown="startTalk()" onmouseup="stopTalk()" ontouchstart="startTalk()" ontouchend="stopTalk()">HOLD TO TALK</button>
@@ -135,9 +138,8 @@
             bonnieConfig.mode = document.getElementById('setting-bonnie-mode').value;
             bonnieConfig.ai = parseInt(document.getElementById('setting-bonnie-ai').value);
             document.getElementById('settings-overlay').style.display = 'none';
-            // If night is already running, restart AI logic
             if (nightRunning && bonnieConfig.mode === 'robot') startBonnieAI();
-            else stopBonnieAI();
+            else if (bonnieConfig.mode !== 'robot') stopBonnieAI();
             checkBonniePresence();
         }
 
@@ -152,16 +154,14 @@
             }, 5000);
         }
 
-        function stopBonnieAI() { clearInterval(bonnieMoveInterval); }
+        function stopBonnieAI() { if(bonnieMoveInterval) clearInterval(bonnieMoveInterval); }
 
         function moveBonnie() {
             const camLabels = Object.keys(activeStreams);
             if (camLabels.length === 0) return;
-            // Pick a random camera label
             const newCam = camLabels[Math.floor(Math.random() * camLabels.length)];
             bonnieConfig.currentCam = newCam;
             checkBonniePresence();
-            console.log("Bonnie moved to: " + newCam);
         }
 
         function checkBonniePresence() {
@@ -186,10 +186,12 @@
             if (nightRunning) {
                 currentHour = 12; startTime = Date.now();
                 btn.innerText = "STOP NIGHT (F4)";
+                btn.classList.add('running');
                 timerInterval = setInterval(updateTimer, 1000);
                 if (bonnieConfig.mode === 'robot') startBonnieAI();
             } else {
                 btn.innerText = "START NIGHT (F4)";
+                btn.classList.remove('running');
                 clearInterval(timerInterval);
                 stopBonnieAI();
             }
@@ -237,11 +239,12 @@
                 monitorMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 monitorMicStream.getAudioTracks()[0].enabled = false;
             } catch(e) {}
-            peer = new Peer(ID_PREFIX + Math.floor(100000 + Math.random() * 900000));
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            peer = new Peer(ID_PREFIX + code);
             peer.on('open', (id) => {
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('monitor-ui').style.display = 'grid';
-                alert("OFFICE CODE: " + id.replace(ID_PREFIX, ''));
+                alert("OFFICE CODE: " + code);
                 startStaticLoop();
             });
             peer.on('call', (call) => {
@@ -269,7 +272,7 @@
             document.getElementById('video-feed').srcObject = activeStreams[label];
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn-' + label).classList.add('active');
+            if(document.getElementById('btn-' + label)) document.getElementById('btn-' + label).classList.add('active');
             checkBonniePresence();
             const pId = Object.keys(nodeData).find(k => nodeData[k].label === label);
             if(activeConnections[pId]) activeConnections[pId].send({ type: 'WATCH', id: label });
@@ -301,11 +304,11 @@
                         if (d.type === 'WIN') document.getElementById('win-screen').style.display = 'flex';
                     });
                 });
-            } catch (e) { alert("Error"); }
+            } catch (e) { alert("Camera Permission Error"); }
         }
 
-        function enableStealth() { document.getElementById('stealth-screen').style.display = 'block'; }
-        function disableStealth() { document.getElementById('stealth-screen').style.display = 'none'; }
+        function enableStealth() { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); document.getElementById('stealth-screen').style.display = 'block'; }
+        function disableStealth() { if (document.exitFullscreen) document.exitFullscreen(); document.getElementById('stealth-screen').style.display = 'none'; }
     </script>
 </body>
 </html>
