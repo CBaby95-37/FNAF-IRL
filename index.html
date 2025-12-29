@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fazbear Surveillance - v7.0</title>
+    <title>Fazbear Surveillance - v8.0 Audio</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; }
+        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
         body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
         
         /* Setup */
@@ -15,22 +15,26 @@
         input { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 80%; text-align: center; font-size: 1.2rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
         
-        /* Monitor UI - Only visible to Monitor */
-        #monitor-ui { display: none; grid-template-columns: 1fr 220px; height: 100vh; }
+        /* Monitor UI */
+        #monitor-ui { display: none; grid-template-columns: 1fr 240px; height: 100vh; }
         #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
         #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
         #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; }
         .overlay { position: absolute; pointer-events: none; z-index: 12; }
         #cam-label { top: 30px; left: 30px; font-size: 2.5rem; text-shadow: 2px 2px #000; }
-        #signal-lost-text { top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3rem; color: white; text-shadow: 0 0 10px red; display: none; }
-        #sidebar { background: #111; padding: 15px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; }
-        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
+        #signal-lost-text { top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2rem; color: white; text-shadow: 0 0 10px red; display: none; }
+        
+        /* Sidebar */
+        #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; overflow-y: auto; }
+        .node-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #222; padding-bottom: 10px; }
+        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 10px; cursor: pointer; text-align: left; flex-grow: 1; }
         .cam-btn.active { background: var(--fnaf-red); color: #fff; }
-        .cam-btn.lost { color: #555; border-color: #333; }
+        .mic-btn { background: #333; color: #777; border: 1px solid #444; padding: 8px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+        .mic-btn.on { background: var(--fnaf-yellow); color: #000; border-color: #fff; }
 
-        /* Camera UI - Minimalist to prevent crashing */
+        /* Camera UI */
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
-        .watched-indicator { color: var(--fnaf-red); font-size: 1.5rem; visibility: hidden; animation: blink 1s infinite; margin: 20px; }
+        .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 10px; }
         #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
@@ -52,16 +56,23 @@
             <div id="cam-label" class="overlay">OFFLINE</div>
             <div id="signal-lost-text" class="overlay">SIGNAL LOST</div>
             <canvas id="static-canvas" class="overlay"></canvas>
-            <video id="video-feed" autoplay playsinline muted></video>
+            <!-- Important: video-feed is NOT muted here so we can hear audio -->
+            <video id="video-feed" autoplay playsinline></video>
         </div>
-        <div id="sidebar"><div id="btn-container"></div></div>
+        <div id="sidebar">
+            <h3 style="text-align:center; font-size: 0.9rem;">NODES / AUDIO</h3>
+            <div id="btn-container"></div>
+        </div>
+        <!-- Hidden container for background audio streams -->
+        <div id="audio-vault" style="display:none;"></div>
     </div>
 
     <!-- Camera Interface -->
     <div id="camera-ui">
-        <h2 id="my-node-label">NODE: PENDING</h2>
-        <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
+        <h2 id="my-node-label" style="font-size: 1rem;">NODE: PENDING</h2>
+        <div id="watched-dot" class="watched-indicator">● LIVE FEED ACTIVE</div>
         <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 20px;">ENABLE STEALTH</button>
+        <p style="font-size: 0.6rem; opacity: 0.4; margin-top: 20px;">Mic and Camera are LIVE</p>
     </div>
 
     <div id="stealth-screen" onclick="disableStealth()"></div>
@@ -80,7 +91,7 @@
             const canvas = document.getElementById('static-canvas');
             const ctx = canvas.getContext('2d');
             function noise() {
-                if (!isMonitor) return; // Kill loop if not monitor
+                if (!isMonitor) return;
                 canvas.width = window.innerWidth; canvas.height = window.innerHeight;
                 const idata = ctx.createImageData(canvas.width, canvas.height);
                 const buffer32 = new Uint32Array(idata.data.buffer);
@@ -102,21 +113,26 @@
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('monitor-ui').style.display = 'grid';
                 alert("OFFICE CODE: " + code);
-                startStaticLoop(); // Only start heavy canvas loop here
+                startStaticLoop();
             });
 
             peer.on('call', (call) => {
                 call.answer();
                 call.on('stream', (stream) => {
-                    if (nodeData[call.peer]) {
-                        activeStreams[nodeData[call.peer].label] = stream;
-                        nodeData[call.peer].btn.classList.remove('lost');
-                        if (currentActiveLabel === nodeData[call.peer].label) switchCam(nodeData[call.peer].label);
+                    const existingNode = nodeData[call.peer];
+                    if (existingNode) {
+                        activeStreams[existingNode.label] = stream;
+                        existingNode.row.style.opacity = "1";
+                        if (currentActiveLabel === existingNode.label) switchCam(existingNode.label);
                     } else {
                         const label = `CAM-0${Object.keys(nodeData).length + 1}`;
                         activeStreams[label] = stream;
-                        const btn = createBtn(label, call.peer);
-                        nodeData[call.peer] = { label, btn };
+                        const row = createNodeRow(label, call.peer);
+                        nodeData[call.peer] = { label, row };
+                        // Ensure audio starts disabled to avoid a jump-scare of noise
+                        if (stream.getAudioTracks().length > 0) {
+                            stream.getAudioTracks()[0].enabled = false;
+                        }
                         if (!currentActiveLabel) switchCam(label);
                     }
                 });
@@ -130,37 +146,66 @@
                 });
                 conn.on('close', () => {
                     const data = nodeData[conn.peer];
-                    if (data) {
-                        data.btn.classList.add('lost');
-                        if (currentActiveLabel === data.label) showSignalLost(true);
-                    }
+                    if (data) data.row.style.opacity = "0.3";
+                    if (currentActiveLabel === data?.label) showSignalLost(true);
                     delete activeConnections[conn.peer];
                 });
             });
         }
 
-        function createBtn(label, pId) {
-            const btn = document.createElement('button');
-            btn.className = 'cam-btn';
-            btn.id = 'btn-' + label;
-            btn.innerText = "> " + label;
-            btn.onclick = () => switchCam(label);
-            document.getElementById('btn-container').appendChild(btn);
-            return btn;
+        function createNodeRow(label, pId) {
+            const container = document.getElementById('btn-container');
+            const row = document.createElement('div');
+            row.className = 'node-row';
+            
+            const camBtn = document.createElement('button');
+            camBtn.className = 'cam-btn';
+            camBtn.id = 'btn-' + label;
+            camBtn.innerText = "> " + label;
+            camBtn.onclick = () => switchCam(label);
+            
+            const micBtn = document.createElement('button');
+            micBtn.className = 'mic-btn';
+            micBtn.id = 'mic-' + label;
+            micBtn.innerText = "MIC: OFF";
+            micBtn.onclick = () => toggleMic(label);
+            
+            row.appendChild(camBtn);
+            row.appendChild(micBtn);
+            container.appendChild(row);
+            return row;
+        }
+
+        function toggleMic(label) {
+            const stream = activeStreams[label];
+            const micBtn = document.getElementById('mic-' + label);
+            if (stream && stream.getAudioTracks().length > 0) {
+                const track = stream.getAudioTracks()[0];
+                track.enabled = !track.enabled;
+                micBtn.innerText = track.enabled ? "MIC: LIVE" : "MIC: OFF";
+                micBtn.classList.toggle('on', track.enabled);
+            } else {
+                alert("No audio track detected for this node.");
+            }
         }
 
         function switchCam(label) {
             currentActiveLabel = label;
             const pId = Object.keys(nodeData).find(k => nodeData[k].label === label);
-            if (!activeConnections[pId]) showSignalLost(true);
-            else {
+            
+            if (!activeConnections[pId]) {
+                showSignalLost(true);
+            } else {
                 showSignalLost(false);
-                document.getElementById('video-feed').srcObject = activeStreams[label];
+                const video = document.getElementById('video-feed');
+                video.srcObject = activeStreams[label];
                 Object.values(activeConnections).forEach(c => c.send({ type: 'WATCH', id: label }));
             }
+            
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            if(nodeData[pId]) nodeData[pId].btn.classList.add('active');
+            const activeBtn = document.getElementById('btn-' + label);
+            if(activeBtn) activeBtn.classList.add('active');
         }
 
         function showSignalLost(lost) {
@@ -172,18 +217,21 @@
         // --- CAMERA ROLE ---
         async function initCamera() {
             const code = document.getElementById('join-code').value;
-            if (code.length !== 6) return;
+            if (code.length !== 6) return alert("Enter the 6-digit monitor code.");
 
             try {
-                // Request wake lock to keep screen on
                 if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
 
-                // Stability Fix: Use specific resolution to prevent phone overheating
+                // Request Audio and Video together
                 const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { 
+                        echoCancellation: true, 
+                        noiseSuppression: true,
+                        autoGainControl: true 
+                    },
                     video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
                 });
 
-                // Generate a persistent ID for this phone
                 let pId = localStorage.getItem('fnaf_p_id') || 'n-' + Math.random().toString(36).substr(2, 9);
                 localStorage.setItem('fnaf_p_id', pId);
 
@@ -203,7 +251,11 @@
                         }
                     });
                 });
-            } catch (e) { alert("Camera Denied or Error"); }
+                
+                peer.on('error', (err) => alert("Connection Error: " + err.type));
+            } catch (e) { 
+                alert("Permission Denied: Ensure you allow both Camera AND Microphone access."); 
+            }
         }
 
         function enableStealth() {
