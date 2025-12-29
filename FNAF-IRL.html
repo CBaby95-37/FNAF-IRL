@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FNAF IRL Security System</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; overflow: hidden; margin: 0; }
+        
+        /* The "Monitor" UI */
+        #monitor-ui { display: none; grid-template-columns: 1fr 200px; height: 100vh; }
+        #screen { position: relative; background: #111; border: 5px solid #333; overflow: hidden; }
+        #video-feed { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Scanlines Effect */
+        #screen::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        #controls { background: #222; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .cam-btn { background: #444; color: white; border: 2px solid #666; padding: 10px; cursor: pointer; }
+        .cam-btn:hover { background: #666; }
+
+        /* Setup Screen */
+        #setup { text-align: center; padding-top: 50px; }
+        input { padding: 10px; font-size: 1.2rem; }
+        button { padding: 10px 20px; font-size: 1.2rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- Setup Screen -->
+    <div id="setup">
+        <h1>FNAF IRL SETUP</h1>
+        <p>Your ID: <span id="my-id">...</span></p>
+        <hr>
+        <button onclick="startCamera()">ACT AS CAMERA</button>
+        <br><br>
+        <div style="border: 1px solid #0f0; padding: 20px; display: inline-block;">
+            <p>ACT AS MONITOR</p>
+            <input type="text" id="peer-id-input" placeholder="Enter Camera ID">
+            <button onclick="connectToCamera()">ADD CAMERA</button>
+            <br>
+            <button onclick="showMonitor()" style="margin-top:10px; background: red; color: white;">START MONITORING</button>
+        </div>
+    </div>
+
+    <!-- Monitor Interface -->
+    <div id="monitor-ui">
+        <div id="screen">
+            <div id="cam-label" style="position:absolute; top:20px; left:20px; z-index:3; font-size:2rem;">CAM 1</div>
+            <video id="video-feed" autoplay playsinline></video>
+            <div id="static" style="position:absolute; top:0; left:0; width:100%; height:100%; background:url('https://media.giphy.com/media/oEI9uWUicG3II/giphy.gif'); opacity:0.1; pointer-events:none;"></div>
+        </div>
+        <div id="controls" id="camera-list">
+            <h3>CAMERA FEED</h3>
+            <div id="btn-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const peer = new Peer(); // Create a random ID for this device
+        let activeStreams = {};
+        
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+        });
+
+        // --- CAMERA CODE ---
+        async function startCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+            peer.on('call', (call) => {
+                call.answer(stream); // Send camera stream to whoever calls
+            });
+            alert("Camera is LIVE. Leave this window open.");
+        }
+
+        // --- MONITOR CODE ---
+        function connectToCamera() {
+            const remoteId = document.getElementById('peer-id-input').value;
+            if(!remoteId) return;
+
+            const call = peer.call(remoteId, null); // Call the camera (no stream sent back)
+            
+            call.on('stream', (remoteStream) => {
+                const camNum = Object.keys(activeStreams).length + 1;
+                activeStreams[`CAM ${camNum}`] = remoteStream;
+                addButton(`CAM ${camNum}`);
+                document.getElementById('peer-id-input').value = "";
+                alert(`Connected to CAM ${camNum}`);
+            });
+        }
+
+        function addButton(label) {
+            const btn = document.createElement('button');
+            btn.className = 'cam-btn';
+            btn.innerText = label;
+            btn.onclick = () => switchCam(label);
+            document.getElementById('btn-container').appendChild(btn);
+        }
+
+        function switchCam(label) {
+            const video = document.getElementById('video-feed');
+            document.getElementById('cam-label').innerText = label;
+            video.srcObject = activeStreams[label];
+            
+            // Add a "static" glitch effect when switching
+            document.getElementById('static').style.opacity = "0.5";
+            setTimeout(() => { document.getElementById('static').style.opacity = "0.1"; }, 300);
+        }
+
+        function showMonitor() {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('monitor-ui').style.display = 'grid';
+            // Default to first cam
+            const firstCam = Object.keys(activeStreams)[0];
+            if(firstCam) switchCam(firstCam);
+        }
+    </script>
+</body>
+</html>
