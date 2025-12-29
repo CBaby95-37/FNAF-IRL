@@ -2,254 +2,172 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fazbear Surveillance - v5.0 Persistent Link</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fazbear Surveillance - Stability Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; }
-        body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
+        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; }
+        body { background: #000; color: var(--fnaf-green); font-family: monospace; margin: 0; overflow: hidden; }
         
-        /* Setup */
-        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px; }
-        .menu-box { border: 2px solid var(--fnaf-green); padding: 30px; background: rgba(0,20,0,0.4); text-align: center; width: 300px; }
-        input { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 80%; text-align: center; font-size: 1.2rem; margin-bottom: 10px; }
-        button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 5px; }
-        
-        /* Monitor UI */
-        #monitor-ui { display: none; grid-template-columns: 1fr 220px; height: 100vh; }
-        #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
-        #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
-        
-        /* Overlays */
-        #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; }
-        .overlay { position: absolute; pointer-events: none; z-index: 12; }
-        #cam-label { top: 30px; left: 30px; font-size: 2.5rem; text-shadow: 2px 2px #000; }
-        #signal-lost-text { top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3rem; color: white; text-shadow: 0 0 10px red; display: none; }
-        #session-code-display { bottom: 20px; left: 20px; font-size: 1.2rem; background: rgba(0,0,0,0.7); padding: 5px 10px; border: 1px solid var(--fnaf-green); }
-        
-        /* Sidebar */
-        #sidebar { background: #111; padding: 15px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; }
-        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
-        .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
-        .cam-btn.lost { color: #666; border-color: #444; background: #111; }
+        /* Optimized Static: Use a CSS animation + a tiny base64 texture instead of a Canvas loop */
+        .static-bg {
+            position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAADv7+9fX19/f3+Pj4+fn5+vr6+/v79Pz49fAAAACXBIWXMAAAsTAAALEwEAmpwYAAAARElEQVQ4y2NgQAX8DIzw0XvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHvBCHsAADYIdwa9mY9oAAAAAElFTkSuQmCC");
+            opacity: 0.1; pointer-events: none; z-index: 10;
+            animation: noise 0.2s infinite steps(2);
+        }
+        @keyframes noise { 
+            0% { transform: translate(0,0); } 
+            10% { transform: translate(-1%,-1%); }
+            20% { transform: translate(1%,1%); }
+            100% { transform: translate(-2%,1%); }
+        }
 
-        /* Camera UI */
-        #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
-        .watched-indicator { color: var(--fnaf-red); font-size: 1.5rem; font-weight: bold; visibility: hidden; animation: blink 1s infinite; margin: 20px; }
-        #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; cursor: pointer; }
+        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 15px; }
+        .box { border: 1px solid var(--fnaf-green); padding: 20px; background: #050505; width: 280px; text-align: center; }
+        button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 5px; }
+        input { background: #000; border: 1px solid var(--fnaf-green); color: #fff; padding: 10px; width: 80%; text-align: center; margin-bottom: 10px; }
 
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        #monitor-ui { display: none; grid-template-columns: 1fr 180px; height: 100vh; }
+        #screen { position: relative; background: #000; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        
+        #sidebar { background: #0a0a0a; padding: 10px; border-left: 1px solid #222; overflow-y: auto; }
+        .cam-btn { background: #111; color: var(--fnaf-green); border: 1px solid #333; padding: 12px; width: 100%; margin-bottom: 5px; text-align: left; font-size: 0.8rem; }
+        .cam-btn.active { background: var(--fnaf-red); color: white; }
+        .cam-btn.lost { opacity: 0.4; }
+
+        #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; }
     </style>
 </head>
 <body>
 
     <div id="setup">
-        <h1 style="letter-spacing: 5px;">FAZBEAR SURVEILLANCE</h1>
-        <div class="menu-box"><button onclick="initMonitor()">ACT AS MONITOR</button></div>
-        <div class="menu-box">
+        <h2 style="letter-spacing: 5px;">STABILITY OS</h2>
+        <div class="box"><button onclick="initMonitor()">MONITOR MODE</button></div>
+        <div class="box">
             <input type="number" id="join-code" placeholder="6-DIGIT CODE">
-            <button id="btn-camera-init" onclick="initCamera()">ACT AS CAMERA</button>
-            <button id="btn-reconnect" style="display:none; background:#222; color:var(--fnaf-green); border:1px solid var(--fnaf-green);" onclick="reconnectLast()">RECONNECT TO LAST MONITOR</button>
+            <button onclick="initCamera()">CAMERA MODE</button>
+            <button id="reconnect-btn" style="display:none; opacity:0.6;" onclick="reconnectLast()">QUICK RECONNECT</button>
         </div>
     </div>
 
     <div id="monitor-ui">
         <div id="screen">
-            <div id="cam-label" class="overlay">OFFLINE</div>
-            <div id="signal-lost-text" class="overlay">SIGNAL LOST</div>
-            <canvas id="static-canvas" class="overlay"></canvas>
-            <div id="session-code-display" class="overlay">CODE: ------</div>
+            <div id="cam-label" style="position:absolute; top:20px; left:20px; z-index:15; font-size:1.5rem;">OFFLINE</div>
+            <div class="static-bg" id="static"></div>
             <video id="video-feed" autoplay playsinline muted></video>
         </div>
-        <div id="sidebar">
-            <h3 style="text-align:center;">MAP NODES</h3>
-            <div id="btn-container"></div>
-        </div>
-    </div>
-
-    <div id="camera-ui">
-        <h2 id="my-assigned-label">NODE: ...</h2>
-        <div id="watched-dot" class="watched-indicator">● LIVE FEED ACTIVE</div>
-        <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 20px;">ENABLE STEALTH (BLACKOUT)</button>
-        <button onclick="location.reload()" style="margin-top:20px; background:#444; color:white; width:50%; font-size:0.7rem;">TERMINATE SESSION</button>
+        <div id="sidebar"><div id="btn-container"></div></div>
     </div>
 
     <div id="stealth-screen" onclick="disableStealth()"></div>
 
     <script>
         let peer = null;
-        let activeStreams = {};      // label -> MediaStream
-        let activeConnections = {};  // peerId -> DataConnection
-        let nodeData = {};           // peerId -> { label: string, btn: HTMLElement }
-        let currentActiveLabel = null;
-        const ID_PREFIX = "fnaf-system-";
+        let activeStreams = {};
+        let activeConns = {};
+        let currentLabel = null;
 
-        // Check for saved session on load
-        window.onload = () => {
-            const lastCode = localStorage.getItem('fnaf_last_code');
-            if (lastCode) {
-                document.getElementById('btn-reconnect').style.display = 'block';
-                document.getElementById('btn-reconnect').innerText = `RECONNECT TO [${lastCode}]`;
-            }
-        };
-
-        // --- STATIC GENERATOR ---
-        const canvas = document.getElementById('static-canvas');
-        const ctx = canvas.getContext('2d');
-        function noise() {
-            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-            const idata = ctx.createImageData(canvas.width, canvas.height);
-            const buffer32 = new Uint32Array(idata.data.buffer);
-            const isLost = document.getElementById('signal-lost-text').style.display === 'block';
-            for (let i = 0; i < buffer32.length; i++) if (Math.random() < (isLost ? 0.8 : 0.5)) buffer32[i] = 0xffffffff;
-            ctx.putImageData(idata, 0, 0);
-            requestAnimationFrame(noise);
+        // Optimized Memory: Stop all tracks on a stream
+        function killStream(stream) {
+            if (!stream) return;
+            stream.getTracks().forEach(track => track.stop());
         }
-        noise();
 
-        // --- MONITOR LOGIC ---
+        // --- MONITOR ---
         function initMonitor() {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            peer = new Peer(ID_PREFIX + code);
+            peer = new Peer('fnaf-' + code);
             peer.on('open', () => {
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('monitor-ui').style.display = 'grid';
-                document.getElementById('session-code-display').innerText = `CODE: ${code}`;
+                alert("OFFICE CODE: " + code);
             });
 
             peer.on('call', (call) => {
                 call.answer();
                 call.on('stream', (stream) => {
-                    handleIncomingStream(call.peer, stream);
+                    const label = `CAM-0${Object.keys(activeStreams).length + 1}`;
+                    // Clean up if this label already existed (reconnect)
+                    if (activeStreams[label]) killStream(activeStreams[label]);
+                    activeStreams[label] = stream;
+                    updateUI(label);
                 });
             });
 
             peer.on('connection', (conn) => {
-                activeConnections[conn.peer] = conn;
-                conn.on('open', () => {
-                    const label = nodeData[conn.peer]?.label || `CAM-0${Object.keys(nodeData).length + 1}`;
-                    conn.send({ type: 'ASSIGN_LABEL', label: label });
+                activeConns[conn.peer] = conn;
+                conn.on('close', () => { 
+                    const label = Object.keys(activeStreams).find(l => activeStreams[l]?.id === conn.peer);
+                    if(label) document.getElementById('btn-'+label).classList.add('lost');
                 });
-                conn.on('close', () => handleDisconnect(conn.peer));
             });
         }
 
-        function handleIncomingStream(peerId, stream) {
-            if (nodeData[peerId]) {
-                // Persistent Node Reconnected
-                activeStreams[nodeData[peerId].label] = stream;
-                const btn = nodeData[peerId].btn;
-                btn.classList.remove('lost');
-                btn.innerText = `> ${nodeData[peerId].label}`;
-                if (currentActiveLabel === nodeData[peerId].label) switchCam(nodeData[peerId].label);
-            } else {
-                // Brand New Node
-                const label = `CAM-0${Object.keys(nodeData).length + 1}`;
-                activeStreams[label] = stream;
-                const btn = createCamButton(label, peerId);
-                nodeData[peerId] = { label: label, btn: btn };
-                if (!currentActiveLabel) switchCam(label);
-            }
-        }
-
-        function createCamButton(label, peerId) {
+        function updateUI(label) {
+            if (document.getElementById('btn-'+label)) return;
             const btn = document.createElement('button');
             btn.className = 'cam-btn';
-            btn.id = 'btn-' + label;
-            btn.innerText = `> ${label}`;
+            btn.id = 'btn-'+label;
+            btn.innerText = "> " + label;
             btn.onclick = () => switchCam(label);
             document.getElementById('btn-container').appendChild(btn);
-            return btn;
-        }
-
-        function handleDisconnect(peerId) {
-            const data = nodeData[peerId];
-            if (!data) return;
-            data.btn.classList.add('lost');
-            data.btn.innerText = `> ${data.label} [LOST]`;
-            if (currentActiveLabel === data.label) showSignalLost(true);
-            delete activeConnections[peerId];
+            if (!currentLabel) switchCam(label);
         }
 
         function switchCam(label) {
-            currentActiveLabel = label;
-            const peerId = Object.keys(nodeData).find(key => nodeData[key].label === label);
-            if (!activeConnections[peerId]) {
-                showSignalLost(true);
-            } else {
-                showSignalLost(false);
-                document.getElementById('video-feed').srcObject = activeStreams[label];
-                Object.values(activeConnections).forEach(c => c.send({ type: 'ACTIVE_CAM', activeId: label }));
-            }
+            currentLabel = label;
+            const video = document.getElementById('video-feed');
+            video.srcObject = activeStreams[label];
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            if (nodeData[peerId]) nodeData[peerId].btn.classList.add('active');
+            document.getElementById('btn-'+label).classList.add('active');
+            
+            // Minimalist Flicker
+            const s = document.getElementById('static');
+            s.style.opacity = "0.6";
+            setTimeout(() => s.style.opacity = "0.1", 200);
         }
 
-        function showSignalLost(isLost) {
-            document.getElementById('video-feed').style.display = isLost ? 'none' : 'block';
-            document.getElementById('signal-lost-text').style.display = isLost ? 'block' : 'none';
-            document.getElementById('static-canvas').style.opacity = isLost ? "0.5" : "0.08";
-        }
-
-        // --- CAMERA LOGIC ---
-        function getPersistentId() {
-            let id = localStorage.getItem('fnaf_node_id');
-            if (!id) {
-                id = 'node-' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('fnaf_node_id', id);
-            }
-            return id;
-        }
-
-        async function initCamera(codeFromInput) {
-            const code = codeFromInput || document.getElementById('join-code').value.trim();
-            if(code.length !== 6) return alert("Invalid Code");
+        // --- CAMERA ---
+        async function initCamera() {
+            const code = document.getElementById('join-code').value;
+            if (!code) return;
 
             try {
-                if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                
-                peer = new Peer(getPersistentId()); // Always use same ID for this phone
-                peer.on('open', (id) => {
-                    localStorage.setItem('fnaf_last_code', code);
-                    document.getElementById('setup').style.display = 'none';
-                    document.getElementById('camera-ui').style.display = 'flex';
-                    
-                    peer.call(ID_PREFIX + code, stream);
-                    const conn = peer.connect(ID_PREFIX + code);
-                    conn.on('data', (data) => {
-                        if(data.type === 'ASSIGN_LABEL') document.getElementById('my-assigned-label').innerText = `NODE: ${data.label}`;
-                        if(data.type === 'ACTIVE_CAM') {
-                            const myLabel = document.getElementById('my-assigned-label').innerText.split(': ')[1];
-                            document.getElementById('watched-dot').style.visibility = (data.activeId === myLabel) ? 'visible' : 'hidden';
-                        }
-                    });
+                // STABILITY FIX: Low-Res for Mobile (360p)
+                // High-res causes mobile GPUs to overheat and crash browsers
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 640 }, 
+                        height: { ideal: 360 },
+                        frameRate: { ideal: 15 } // 15fps is enough for FNAF feel and saves 50% CPU
+                    } 
                 });
-                peer.on('error', (err) => {
-                    if (err.type === 'unavailable-id') alert("Node already active in another tab.");
+
+                peer = new Peer();
+                peer.on('open', () => {
+                    localStorage.setItem('fnaf_code', code);
+                    peer.call('fnaf-' + code, stream);
+                    peer.connect('fnaf-' + code);
+                    document.getElementById('setup').innerHTML = "<h1>NODE ACTIVE</h1><button onclick='enableStealth()'>STEALTH MODE</button>";
+                    if ('wakeLock' in navigator) navigator.wakeLock.request('screen');
                 });
-            } catch (err) { alert("Camera Denied"); }
+            } catch (e) { alert("Camera Error: Try refreshing"); }
         }
 
-        function reconnectLast() {
-            const lastCode = localStorage.getItem('fnaf_last_code');
-            if (lastCode) initCamera(lastCode);
-        }
-
-        // Stealth / Fullscreen logic remains same as v4.0
         function enableStealth() {
-            const doc = document.documentElement;
-            if (doc.requestFullscreen) doc.requestFullscreen();
             document.getElementById('stealth-screen').style.display = 'block';
+            if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
         }
         function disableStealth() {
-            if (document.exitFullscreen) document.exitFullscreen();
             document.getElementById('stealth-screen').style.display = 'none';
+            if (document.exitFullscreen) document.exitFullscreen();
         }
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) document.getElementById('stealth-screen').style.display = 'none';
-        });
+        function reconnectLast() { initCamera(localStorage.getItem('fnaf_code')); }
+        if(localStorage.getItem('fnaf_code')) document.getElementById('reconnect-btn').style.display = 'block';
     </script>
 </body>
 </html>
