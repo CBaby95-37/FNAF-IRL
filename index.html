@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-MASTER-FIXED">
-    <title>Fazbear Surveillance - FINAL</title>
+    <meta name="version" content="20251229-FINAL-TIMING">
+    <title>Fazbear Surveillance - v23.0 FINAL</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { 
@@ -25,7 +25,7 @@
         #monitor-ui { display: none; grid-template-columns: 1fr 240px; height: 100vh; }
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
 
-        /* --- UI ELEMENTS --- */
+        /* --- SETUP ELEMENTS --- */
         .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; }
         input, select { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 90%; text-align: center; font-size: 1rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 5px; }
@@ -35,7 +35,7 @@
         #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
         #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
         
-        /* STATIC CANVAS: Z-Index 10 normally, 40000 during jump */
+        /* STATIC CANVAS: Z-Index 10 normally, 40002 during jump */
         #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; transition: opacity 0.1s; }
         
         /* HUD */
@@ -60,18 +60,13 @@
         #shock-btn { display: none; position: absolute; bottom: 10%; right: 5%; width: 160px; background: var(--fnaf-blue); color: white; border: 4px solid white; z-index: 30; animation: blink-fast 0.5s infinite; padding: 15px; font-size: 1.2rem; }
         #shock-timer { display: none; position: absolute; bottom: 20%; right: 7%; font-size: 3rem; color: var(--fnaf-blue); z-index: 30; font-weight: bold; text-shadow: 0 0 10px #fff; }
 
-        /* --- TRANSITION EFFECTS --- */
-        #white-flash { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40000; pointer-events: none; }
+        /* --- EFFECTS --- */
+        /* Z-Index 40001 to sit BEHIND static (40002) but ABOVE video (30000) */
+        #white-flash { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40001; pointer-events: none; }
 
         /* --- MODALS --- */
         .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; padding: 30px; z-index: 20000; text-align: center; border: 4px solid #fff; width: 80%; max-width: 500px; }
-        
-        /* Win Screen Fading */
-        #win-screen { 
-            border-color: var(--fnaf-yellow); background: rgba(0,0,0,0.95); 
-            opacity: 0; transition: opacity 1s ease-in-out;
-        }
-        
+        #win-screen { border-color: var(--fnaf-yellow); background: rgba(0,0,0,0.95); opacity: 0; transition: opacity 1s ease-in-out; }
         #settings-overlay { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; border: 2px solid var(--fnaf-blue); padding: 25px; z-index: 21000; width: 300px; box-shadow: 0 0 20px var(--fnaf-blue); }
         #update-modal { border-color: var(--fnaf-yellow); z-index: 25000; }
 
@@ -97,7 +92,7 @@
 </head>
 <body>
 
-    <!-- FLASH EFFECT -->
+    <!-- VISUAL EFFECTS -->
     <div id="white-flash"></div>
 
     <!-- SETUP -->
@@ -146,6 +141,7 @@
     <!-- GAME OVER SCREEN -->
     <div id="gameover-screen">
         <h1 style="font-size: 6rem; text-shadow: 0 0 20px red;">GAME OVER</h1>
+        <button onclick="restartNight()" style="width: auto; background: red; color: white; padding: 10px 50px;">RETRY</button>
     </div>
 
     <!-- MONITOR -->
@@ -328,9 +324,7 @@
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             let hr = (mins === 0) ? 12 : mins;
-            
             if (mins >= 6) { hr = 6; clearInterval(timerInterval); triggerWin(); }
-
             if (hr !== currentHour) {
                 currentHour = hr;
                 document.getElementById('clock-display').innerText = `${hr} AM`;
@@ -338,7 +332,6 @@
             }
         }
 
-        // --- WIN SEQUENCE ---
         function triggerWin() {
             stopNightLogic();
             victorySound.play().catch(e=>{});
@@ -353,7 +346,7 @@
             }, 11000);
         }
 
-        // --- BONNIE AI ---
+        // --- BONNIE AI & CINEMATIC JUMPSCARE ---
         function openSettings() { document.getElementById('settings-overlay').style.display = 'block'; }
         function closeSettings() {
             bonnieConfig.mode = document.getElementById('setting-bonnie-mode').value;
@@ -408,7 +401,6 @@
             checkBonnie();
         }
 
-        // --- CINEMATIC JUMPSCARE ---
         function triggerJumpscare() {
             stopNightLogic();
             const vid = document.getElementById('jumpscare-video');
@@ -417,7 +409,7 @@
             const staticCanv = document.getElementById('static-canvas');
             const flash = document.getElementById('white-flash');
 
-            // Ensure Game Over is ready (Opacity 1)
+            // Reset Game Over Visibility
             gameOver.style.opacity = "1";
 
             // 1. Play Video
@@ -425,43 +417,41 @@
             vid.currentTime = 0;
             vid.play().catch(e => {});
 
-            // 2. Transition Effect (1.5s in)
+            // 2. Start Transition Effects (1.5s in) - Static & Flash over Video
             setTimeout(() => {
                 flash.style.display = 'block';
-                staticCanv.style.zIndex = "40000"; // Over everything
+                staticCanv.style.zIndex = "40002"; // Static on top
                 staticCanv.style.opacity = "0.9";  // Heavy static
-            }, 1500);
+            }, 1000); // Start effect 1s into video (so it lasts 1.5s if cut is at 2.5s)
 
-            // 3. Cut to Black (2.0s in)
+            // 3. Cut to Black (2.5s in) - Keep Static & Flash
             setTimeout(() => {
                 vid.pause();
-                overlay.style.display = 'none'; // Hide video
-                gameOver.style.display = 'flex'; // Show Black Screen
+                overlay.style.display = 'none';
+                gameOver.style.display = 'flex';
                 Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' }));
-            }, 2000);
-
-            // 4. Reveal Game Over Text (2.5s in) - Remove Static/Flash
-            setTimeout(() => {
-                flash.style.display = 'none';
-                staticCanv.style.zIndex = "10"; 
-                staticCanv.style.opacity = "0.08"; 
             }, 2500);
 
-            // 5. Fade Out (6.0s in)
+            // 4. Reveal Text (0.5s later -> 3.0s total)
+            setTimeout(() => {
+                flash.style.display = 'none';
+                staticCanv.style.zIndex = "10"; // Lower static
+                staticCanv.style.opacity = "0.08"; // Normal static
+            }, 3000);
+
+            // 5. Fade Out (4s later -> 7.0s total)
             setTimeout(() => {
                 gameOver.style.opacity = 0;
-                // 6. Reset UI (6.5s in)
+                // 6. Reset UI
                 setTimeout(() => {
                     restartNight();
                 }, 500);
-            }, 6000);
+            }, 7000);
         }
 
         function restartNight() {
             document.getElementById('gameover-screen').style.display = 'none';
-            // Reset opacity for next time is crucial!
             document.getElementById('gameover-screen').style.opacity = "1";
-            
             document.getElementById('clock-display').innerText = "12 AM";
             currentHour = 12;
             stopBonnieAI();
