@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Build Timestamp for Update Detection -->
-    <meta name="version" content="20251228-1840">
-    <title>Fazbear Surveillance - v11.0</title>
+    <meta name="version" content="20251228-2100">
+    <title>Fazbear Surveillance - v12.0</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
@@ -22,29 +21,32 @@
         #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
         #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
         #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; }
-        .overlay { position: absolute; pointer-events: none; z-index: 12; }
-        #cam-label { top: 30px; left: 30px; font-size: 2.5rem; text-shadow: 2px 2px #000; }
-        #signal-lost-text { top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2rem; color: white; text-shadow: 0 0 10px red; display: none; }
+        
+        /* Clock Display */
+        #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3rem; color: #fff; text-shadow: 0 0 10px #fff; z-index: 20; }
+        #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2rem; z-index: 20; text-shadow: 2px 2px #000; }
+        
+        /* Overlays */
+        #signal-lost-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2rem; color: white; text-shadow: 0 0 10px red; display: none; z-index: 25; }
         
         /* Sidebar */
         #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; overflow-y: auto; }
         .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
         .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
-
-        /* Intercom */
-        #talk-btn { background: #444; color: #fff; margin-top: auto; padding: 20px; border: 2px solid #666; font-size: 1rem; }
-        #talk-btn.active { background: var(--fnaf-red); border-color: #fff; }
+        #timer-control-btn { background: var(--fnaf-blue); color: white; margin-top: 10px; padding: 15px; }
+        #timer-control-btn.running { background: var(--fnaf-red); }
 
         /* Camera UI */
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
+        #phone-clock { font-size: 3rem; color: #fff; margin-bottom: 20px; }
         .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 10px; }
         #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; }
 
-        /* Update Modal */
-        #update-modal { 
-            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #000; border: 4px solid var(--fnaf-yellow); padding: 20px; z-index: 10000;
-            width: 80%; max-width: 400px; text-align: center; box-shadow: 0 0 20px var(--fnaf-yellow);
+        /* 6 AM WIN SCREEN */
+        #win-screen { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 10000; color: #fff; flex-direction: column; 
+            align-items: center; justify-content: center; font-size: 5rem; font-weight: bold;
         }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
@@ -61,31 +63,34 @@
         </div>
     </div>
 
-    <!-- Update Modal -->
-    <div id="update-modal">
-        <h2 style="color: var(--fnaf-yellow);">!! SYSTEM PATCH DETECTED !!</h2>
-        <p>New surveillance software is available. Apply update now?</p>
-        <button onclick="location.reload()" style="background: var(--fnaf-yellow); color: #000;">REBOOT & UPDATE</button>
-        <button onclick="closeUpdate()" style="background: transparent; color: #555; font-size: 0.7rem; border: none; margin-top: 10px;">LATER</button>
+    <!-- Win Screen -->
+    <div id="win-screen">
+        <div style="font-size: 2rem;">5:59 AM</div>
+        <div id="six-am-text" style="font-size: 8rem; margin: 20px 0;">6 AM</div>
+        <div style="font-size: 1.5rem; color: var(--fnaf-green);">GREAT JOB!</div>
+        <button onclick="location.reload()" style="width: auto; margin-top: 40px; padding: 10px 40px;">NEXT NIGHT</button>
     </div>
 
     <!-- Monitor Interface -->
     <div id="monitor-ui">
         <div id="screen">
-            <div id="cam-label" class="overlay">OFFLINE</div>
-            <div id="signal-lost-text" class="overlay">SIGNAL LOST</div>
-            <canvas id="static-canvas" class="overlay"></canvas>
+            <div id="clock-display">12 AM</div>
+            <div id="cam-label">OFFLINE</div>
+            <div id="signal-lost-text">SIGNAL LOST</div>
+            <canvas id="static-canvas"></canvas>
             <video id="video-feed" autoplay playsinline></video>
         </div>
         <div id="sidebar">
             <h3 style="text-align:center; font-size: 0.8rem;">CAMERA NODES</h3>
             <div id="btn-container"></div>
+            <button id="timer-control-btn" onclick="toggleTimer()">START NIGHT (F4)</button>
             <button id="talk-btn" onmousedown="startTalk()" onmouseup="stopTalk()" ontouchstart="startTalk()" ontouchend="stopTalk()">HOLD TO TALK</button>
         </div>
     </div>
 
     <!-- Camera Interface -->
     <div id="camera-ui">
+        <div id="phone-clock">12 AM</div>
         <h2 id="my-node-label" style="font-size: 1rem;">NODE: PENDING</h2>
         <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
         <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 20px;">ENABLE STEALTH</button>
@@ -104,26 +109,65 @@
         let monitorMicStream = null;
         const ID_PREFIX = "fnaf-sys-";
 
-        // --- UPDATE DETECTION SYSTEM (Low Memory) ---
-        const initialVersion = document.querySelector('meta[name="version"]').content;
-        
-        async function checkForUpdates() {
-            try {
-                // Fetch index.html but only request the header to save memory/data
-                const response = await fetch(window.location.href, { method: 'GET', cache: 'no-cache' });
-                const html = await response.text();
-                
-                // Parse a small string instead of loading the whole DOM
-                const match = html.match(/meta name="version" content="(.*?)"/);
-                if (match && match[1] !== initialVersion) {
-                    document.getElementById('update-modal').style.display = 'block';
-                }
-            } catch (e) { console.log("Update check failed (offline?)"); }
+        // --- TIMER STATE ---
+        let nightRunning = false;
+        let startTime = null;
+        let timerInterval = null;
+        let currentHour = 12; // 12 AM
+
+        function toggleTimer() {
+            if (!isMonitor) return;
+            nightRunning = !nightRunning;
+            const btn = document.getElementById('timer-control-btn');
+            
+            if (nightRunning) {
+                btn.innerText = "STOP NIGHT (F4)";
+                btn.classList.add('running');
+                startTime = Date.now();
+                timerInterval = setInterval(updateTimer, 1000);
+            } else {
+                btn.innerText = "START NIGHT (F4)";
+                btn.classList.remove('running');
+                clearInterval(timerInterval);
+            }
         }
 
-        // Check for updates every 5 minutes
-        setInterval(checkForUpdates, 300000);
-        function closeUpdate() { document.getElementById('update-modal').style.display = 'none'; }
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const minutesElapsed = Math.floor(elapsed / 60);
+            
+            // FNAF logic: 0-59s = 12AM, 60-119s = 1AM, etc.
+            let hour = 12;
+            if (minutesElapsed > 0) hour = minutesElapsed;
+            
+            if (hour >= 6) {
+                hour = 6;
+                clearInterval(timerInterval);
+                triggerWin();
+            }
+
+            if (hour !== currentHour) {
+                currentHour = hour;
+                const clockStr = `${currentHour} AM`;
+                document.getElementById('clock-display').innerText = clockStr;
+                // Sync to all phones
+                Object.values(activeConnections).forEach(c => c.send({ type: 'TIME_SYNC', time: clockStr }));
+            }
+        }
+
+        function triggerWin() {
+            document.getElementById('win-screen').style.display = 'flex';
+            // Also tell all phones it's 6 AM
+            Object.values(activeConnections).forEach(c => c.send({ type: 'WIN' }));
+        }
+
+        // F4 Keybind
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F4') {
+                e.preventDefault();
+                toggleTimer();
+            }
+        });
 
         // --- MONITOR ONLY: STATIC GENERATOR ---
         function startStaticLoop() {
@@ -180,7 +224,11 @@
 
             peer.on('connection', (conn) => {
                 activeConnections[conn.peer] = conn;
-                conn.on('open', () => conn.send({ type: 'ASSIGN', label: nodeData[conn.peer]?.label || "CAM-??" }));
+                conn.on('open', () => {
+                    conn.send({ type: 'ASSIGN', label: nodeData[conn.peer]?.label || "CAM-??" });
+                    // Sync current time immediately
+                    conn.send({ type: 'TIME_SYNC', time: currentHour + " AM" });
+                });
                 conn.on('close', () => {
                     const data = nodeData[conn.peer];
                     if (data) data.btn.classList.add('lost');
@@ -254,6 +302,11 @@
                     const conn = peer.connect(ID_PREFIX + code);
                     conn.on('data', (data) => {
                         if (data.type === 'ASSIGN') document.getElementById('my-node-label').innerText = "NODE: " + data.label;
+                        if (data.type === 'TIME_SYNC') document.getElementById('phone-clock').innerText = data.time;
+                        if (data.type === 'WIN') { 
+                            document.getElementById('camera-ui').style.display = 'none'; 
+                            document.getElementById('win-screen').style.display = 'flex';
+                        }
                         if (data.type === 'WATCH') {
                             const myLabel = document.getElementById('my-node-label').innerText.split(': ')[1];
                             const isSelected = (data.id === myLabel);
