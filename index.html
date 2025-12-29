@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fazbear surveillance - v10.0 Intercom</title>
+    <!-- Build Timestamp for Update Detection -->
+    <meta name="version" content="20251228-1840">
+    <title>Fazbear Surveillance - v11.0</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; }
+        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
         body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
         
         /* Setup */
@@ -26,18 +28,25 @@
         
         /* Sidebar */
         #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 10px; border-left: 1px solid #333; overflow-y: auto; }
-        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; transition: 0.2s; }
+        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
         .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
-        .cam-btn.lost { color: #555; border-color: #333; opacity: 0.5; }
 
-        /* Intercom Button */
-        #talk-btn { background: #444; color: #fff; margin-top: auto; padding: 20px; border: 2px solid #666; font-size: 1.2rem; user-select: none; }
-        #talk-btn.active { background: var(--fnaf-red); border-color: #fff; box-shadow: 0 0 15px var(--fnaf-red); }
+        /* Intercom */
+        #talk-btn { background: #444; color: #fff; margin-top: auto; padding: 20px; border: 2px solid #666; font-size: 1rem; }
+        #talk-btn.active { background: var(--fnaf-red); border-color: #fff; }
 
         /* Camera UI */
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
         .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 10px; }
         #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; }
+
+        /* Update Modal */
+        #update-modal { 
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #000; border: 4px solid var(--fnaf-yellow); padding: 20px; z-index: 10000;
+            width: 80%; max-width: 400px; text-align: center; box-shadow: 0 0 20px var(--fnaf-yellow);
+        }
+
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
 </head>
@@ -52,6 +61,14 @@
         </div>
     </div>
 
+    <!-- Update Modal -->
+    <div id="update-modal">
+        <h2 style="color: var(--fnaf-yellow);">!! SYSTEM PATCH DETECTED !!</h2>
+        <p>New surveillance software is available. Apply update now?</p>
+        <button onclick="location.reload()" style="background: var(--fnaf-yellow); color: #000;">REBOOT & UPDATE</button>
+        <button onclick="closeUpdate()" style="background: transparent; color: #555; font-size: 0.7rem; border: none; margin-top: 10px;">LATER</button>
+    </div>
+
     <!-- Monitor Interface -->
     <div id="monitor-ui">
         <div id="screen">
@@ -61,13 +78,9 @@
             <video id="video-feed" autoplay playsinline></video>
         </div>
         <div id="sidebar">
-            <h3 style="text-align:center; font-size: 0.9rem;">NODES</h3>
+            <h3 style="text-align:center; font-size: 0.8rem;">CAMERA NODES</h3>
             <div id="btn-container"></div>
-            <button id="talk-btn" 
-                    onmousedown="startTalk()" onmouseup="stopTalk()" 
-                    ontouchstart="startTalk()" ontouchend="stopTalk()">
-                HOLD TO TALK
-            </button>
+            <button id="talk-btn" onmousedown="startTalk()" onmouseup="stopTalk()" ontouchstart="startTalk()" ontouchend="stopTalk()">HOLD TO TALK</button>
         </div>
     </div>
 
@@ -76,7 +89,6 @@
         <h2 id="my-node-label" style="font-size: 1rem;">NODE: PENDING</h2>
         <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
         <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 20px;">ENABLE STEALTH</button>
-        <!-- Hidden intercom player -->
         <audio id="intercom-audio" autoplay playsinline></audio>
     </div>
 
@@ -91,6 +103,27 @@
         let isMonitor = false;
         let monitorMicStream = null;
         const ID_PREFIX = "fnaf-sys-";
+
+        // --- UPDATE DETECTION SYSTEM (Low Memory) ---
+        const initialVersion = document.querySelector('meta[name="version"]').content;
+        
+        async function checkForUpdates() {
+            try {
+                // Fetch index.html but only request the header to save memory/data
+                const response = await fetch(window.location.href, { method: 'GET', cache: 'no-cache' });
+                const html = await response.text();
+                
+                // Parse a small string instead of loading the whole DOM
+                const match = html.match(/meta name="version" content="(.*?)"/);
+                if (match && match[1] !== initialVersion) {
+                    document.getElementById('update-modal').style.display = 'block';
+                }
+            } catch (e) { console.log("Update check failed (offline?)"); }
+        }
+
+        // Check for updates every 5 minutes
+        setInterval(checkForUpdates, 300000);
+        function closeUpdate() { document.getElementById('update-modal').style.display = 'none'; }
 
         // --- MONITOR ONLY: STATIC GENERATOR ---
         function startStaticLoop() {
@@ -113,9 +146,7 @@
         async function initMonitor() {
             isMonitor = true;
             try {
-                // Get Monitor's Mic
                 monitorMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
-                // Keep mic track disabled (muted) until PTT button is pressed
                 monitorMicStream.getAudioTracks()[0].enabled = false;
             } catch(e) { alert("Mic required for Intercom"); }
 
@@ -130,17 +161,13 @@
             });
 
             peer.on('call', (call) => {
-                // IMPORTANT: Answer the phone with the monitor's mic stream
                 call.answer(monitorMicStream);
-                
                 call.on('stream', (stream) => {
                     const existingNode = nodeData[call.peer];
                     stream.getAudioTracks().forEach(t => t.enabled = false);
-
                     if (existingNode) {
                         activeStreams[existingNode.label] = stream;
                         existingNode.btn.classList.remove('lost');
-                        if (currentActiveLabel === existingNode.label) switchCam(existingNode.label);
                     } else {
                         const label = `CAM-0${Object.keys(nodeData).length + 1}`;
                         activeStreams[label] = stream;
@@ -153,40 +180,33 @@
 
             peer.on('connection', (conn) => {
                 activeConnections[conn.peer] = conn;
-                conn.on('open', () => {
-                    const label = nodeData[conn.peer]?.label || "CAM-??";
-                    conn.send({ type: 'ASSIGN', label: label });
-                });
+                conn.on('open', () => conn.send({ type: 'ASSIGN', label: nodeData[conn.peer]?.label || "CAM-??" }));
                 conn.on('close', () => {
                     const data = nodeData[conn.peer];
                     if (data) data.btn.classList.add('lost');
                     if (currentActiveLabel === data?.label) showSignalLost(true);
-                    delete activeConnections[conn.peer];
                 });
             });
         }
 
-        // --- MONITOR INTERCOM (PTT) ---
         function startTalk() {
             if (monitorMicStream) {
                 monitorMicStream.getAudioTracks()[0].enabled = true;
-                document.getElementById('talk-btn').classList.add('active');
-                document.getElementById('talk-btn').innerText = "TALKING...";
+                const btn = document.getElementById('talk-btn');
+                btn.classList.add('active'); btn.innerText = "TALKING...";
             }
         }
         function stopTalk() {
             if (monitorMicStream) {
                 monitorMicStream.getAudioTracks()[0].enabled = false;
-                document.getElementById('talk-btn').classList.remove('active');
-                document.getElementById('talk-btn').innerText = "HOLD TO TALK";
+                const btn = document.getElementById('talk-btn');
+                btn.classList.remove('active'); btn.innerText = "HOLD TO TALK";
             }
         }
 
         function createBtn(label, pId) {
             const btn = document.createElement('button');
-            btn.className = 'cam-btn';
-            btn.id = 'btn-' + label;
-            btn.innerText = "> " + label;
+            btn.className = 'cam-btn'; btn.id = 'btn-' + label; btn.innerText = "> " + label;
             btn.onclick = () => switchCam(label);
             document.getElementById('btn-container').appendChild(btn);
             return btn;
@@ -195,26 +215,16 @@
         function switchCam(label) {
             currentActiveLabel = label;
             const pId = Object.keys(nodeData).find(k => nodeData[k].label === label);
-            
-            // Audio Tracking (Listen to Phone)
-            Object.keys(activeStreams).forEach(camKey => {
-                const stream = activeStreams[camKey];
-                stream.getAudioTracks().forEach(t => t.enabled = (camKey === label));
-            });
-
-            if (!activeConnections[pId]) {
-                showSignalLost(true);
-            } else {
+            Object.keys(activeStreams).forEach(k => activeStreams[k].getAudioTracks().forEach(t => t.enabled = (k === label)));
+            if (!activeConnections[pId]) showSignalLost(true);
+            else {
                 showSignalLost(false);
                 document.getElementById('video-feed').srcObject = activeStreams[label];
-                // Tell phones who is watched (to control their intercom)
                 Object.values(activeConnections).forEach(c => c.send({ type: 'WATCH', id: label }));
             }
-            
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            const activeBtn = document.getElementById('btn-' + label);
-            if(activeBtn) activeBtn.classList.add('active');
+            if(nodeData[pId]) nodeData[pId].btn.classList.add('active');
         }
 
         function showSignalLost(lost) {
@@ -233,18 +243,14 @@
                     audio: true, video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
                 });
                 peer = new Peer();
-                peer.on('open', (id) => {
+                peer.on('open', () => {
                     document.getElementById('setup').style.display = 'none';
                     document.getElementById('camera-ui').style.display = 'flex';
                     const call = peer.call(ID_PREFIX + code, stream);
-                    
-                    // Receive Monitor's Stream (The Intercom)
-                    call.on('stream', (remoteStream) => {
-                        const intercom = document.getElementById('intercom-audio');
-                        intercom.srcObject = remoteStream;
-                        intercom.muted = true; // Start muted
+                    call.on('stream', (rStream) => {
+                        const audio = document.getElementById('intercom-audio');
+                        audio.srcObject = rStream; audio.muted = true;
                     });
-
                     const conn = peer.connect(ID_PREFIX + code);
                     conn.on('data', (data) => {
                         if (data.type === 'ASSIGN') document.getElementById('my-node-label').innerText = "NODE: " + data.label;
@@ -252,12 +258,11 @@
                             const myLabel = document.getElementById('my-node-label').innerText.split(': ')[1];
                             const isSelected = (data.id === myLabel);
                             document.getElementById('watched-dot').style.visibility = isSelected ? 'visible' : 'hidden';
-                            // UNMUTE intercom only if being watched
                             document.getElementById('intercom-audio').muted = !isSelected;
                         }
                     });
                 });
-            } catch (e) { alert("Mic/Cam Permission required."); }
+            } catch (e) { alert("Camera/Mic Permission required."); }
         }
 
         function enableStealth() {
