@@ -3,258 +3,167 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FNAF IRL - SECURITY SYSTEM</title>
-    <!-- PeerJS Library for P2P Video -->
+    <title>Fazbear OS - Surveillance</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root {
-            --fnaf-red: #8b0000;
-            --fnaf-green: #00ff41;
-        }
-
-        body { 
-            background: #000; 
-            color: var(--fnaf-green); 
-            font-family: 'Courier New', monospace; 
-            overflow: hidden; 
-            margin: 0; 
-            text-transform: uppercase;
-        }
-
-        /* --- SETUP SCREEN --- */
-        #setup { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            text-align: center;
-            background: radial-gradient(circle, #111 0%, #000 100%);
-        }
-
-        .box {
-            border: 2px solid var(--fnaf-green);
-            padding: 20px;
-            margin: 10px;
-            background: rgba(0, 20, 0, 0.5);
-            width: 300px;
-        }
-
-        input { 
-            background: #000; 
-            border: 1px solid var(--fnaf-green); 
-            color: var(--fnaf-green); 
-            padding: 8px; 
-            width: 80%; 
-            margin-bottom: 10px;
-            text-align: center;
-        }
-
-        button { 
-            background: var(--fnaf-green); 
-            color: #000; 
-            border: none; 
-            padding: 10px 20px; 
-            font-weight: bold; 
-            cursor: pointer;
-            width: 100%;
-        }
-
+        :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; }
+        body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
+        
+        /* Setup Screen */
+        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px; }
+        .menu-box { border: 2px solid var(--fnaf-green); padding: 30px; background: rgba(0,20,0,0.4); text-align: center; width: 300px; }
+        input { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 80%; text-align: center; font-size: 1.2rem; margin-bottom: 10px; }
+        button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
         button:hover { background: #fff; }
 
-        /* --- MONITOR INTERFACE --- */
-        #monitor-ui { 
-            display: none; 
-            grid-template-columns: 1fr 200px; 
-            height: 100vh; 
-        }
+        /* Monitor UI */
+        #monitor-ui { display: none; grid-template-columns: 1fr 220px; height: 100vh; }
+        #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
+        #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
+        
+        /* Overlays */
+        .overlay { position: absolute; pointer-events: none; z-index: 10; }
+        #static { top:0; left:0; width:100%; height:100%; background:url('https://media.giphy.com/media/oEI9uWUicG3II/giphy.gif'); opacity: 0.05; }
+        #cam-label { top: 30px; left: 30px; font-size: 2.5rem; text-shadow: 2px 2px #000; }
+        #session-code-display { bottom: 20px; left: 20px; font-size: 1.2rem; background: rgba(0,0,0,0.7); padding: 5px 10px; border: 1px solid var(--fnaf-green); }
+        
+        /* Map/Buttons */
+        #sidebar { background: #111; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .cam-btn { background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); padding: 15px; cursor: pointer; text-align: left; }
+        .cam-btn.active { background: var(--fnaf-red); color: #fff; border-color: #fff; }
+        #no-cams-msg { color: #555; text-align: center; margin-top: 50px; font-style: italic; }
 
-        #screen { 
-            position: relative; 
-            background: #050505; 
-            border-right: 2px solid #333; 
-            overflow: hidden; 
-        }
-
-        #video-feed { 
-            width: 100%; 
-            height: 100%; 
-            object-fit: cover; 
-            filter: grayscale(0.3) brightness(1.2) contrast(1.2);
-        }
-
-        /* Scanlines Effect */
+        /* CRT Effect */
         #screen::after {
             content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            z-index: 5; background-size: 100% 3px, 3px 100%; pointer-events: none;
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            z-index: 15; background-size: 100% 3px, 3px 100%;
         }
-
-        /* CRT Vignette */
-        .vignette {
-            position: absolute; top:0; left:0; width:100%; height:100%;
-            box-shadow: inset 0 0 100px rgba(0,0,0,0.8); z-index: 6; pointer-events: none;
-        }
-
-        #static-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('https://media.giphy.com/media/oEI9uWUicG3II/giphy.gif');
-            opacity: 0.05; z-index: 4; pointer-events: none;
-        }
-
-        #cam-label {
-            position: absolute; top: 30px; left: 30px; z-index: 10;
-            font-size: 2rem; text-shadow: 2px 2px #000;
-        }
-
-        #recording-dot {
-            position: absolute; top: 35px; right: 30px; z-index: 10;
-            color: red; font-size: 1.5rem; animation: blink 1s infinite;
-        }
-
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-
-        /* --- SIDEBAR --- */
-        #controls { background: #111; padding: 20px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--fnaf-green); }
-        .cam-btn { 
-            background: #222; color: var(--fnaf-green); border: 1px solid var(--fnaf-green); 
-            padding: 15px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 1rem;
-        }
-        .cam-btn:hover { background: var(--fnaf-green); color: #000; }
-        .cam-btn.active { background: var(--fnaf-red); color: white; border-color: white; }
-
     </style>
 </head>
 <body>
 
-    <!-- SETUP SCREEN -->
     <div id="setup">
-        <h1 style="color:white; letter-spacing: 5px;">Fazbear Surveillance</h1>
-        <p>SYSTEM ID: <span id="my-id" style="color:white; font-weight:bold;">connecting...</span></p>
-
-        <div class="box">
-            <h3>Camera Node</h3>
-            <button onclick="startCamera()">INITIATE CAMERA</button>
+        <h1 style="letter-spacing: 10px;">FAZBEAR SURVEILLANCE</h1>
+        <div class="menu-box">
+            <button onclick="initMonitor()">ACT AS MONITOR</button>
+            <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 10px;">(Start here to get your code)</p>
         </div>
-
-        <div class="box">
-            <h3>Office Monitor</h3>
-            <input type="text" id="peer-id-input" placeholder="ENTER PHONE ID">
-            <button onclick="connectToCamera()">ADD FEED</button>
-            <button onclick="showMonitor()" style="margin-top:10px; background: var(--fnaf-red); color: white;">START SHIFT</button>
+        <div class="menu-box">
+            <input type="number" id="join-code" placeholder="ENTER 6-DIGIT CODE">
+            <button onclick="initCamera()" style="background: #444; color: white;">ACT AS CAMERA</button>
         </div>
     </div>
 
-    <!-- MONITOR INTERFACE -->
     <div id="monitor-ui">
         <div id="screen">
-            <div id="cam-label">CAM 1</div>
-            <div id="recording-dot">● REC</div>
-            <div id="static-overlay"></div>
-            <div class="vignette"></div>
+            <div id="cam-label" class="overlay">OFFLINE</div>
+            <div id="static" class="overlay"></div>
+            <div id="session-code-display" class="overlay">CODE: ------</div>
             <video id="video-feed" autoplay playsinline muted></video>
         </div>
-        <div id="controls">
-            <h3 style="text-align: center; border-bottom: 1px solid var(--fnaf-green); padding-bottom: 10px;">MAP NODES</h3>
-            <div id="btn-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="sidebar">
+            <h3 style="text-align:center; border-bottom:1px solid #333; padding-bottom:10px;">CAMERA SYSTEM</h3>
+            <div id="btn-container">
+                <div id="no-cams-msg">Waiting for nodes to connect...</div>
+            </div>
         </div>
     </div>
 
     <script>
-        const peer = new Peer(); 
+        let peer = null;
         let activeStreams = {};
-        let dummyStream = null;
+        const ID_PREFIX = "fnaf-system-"; // Keeps IDs unique globally
 
-        // Create a fake stream so the Monitor can "call" the Camera without needing a camera itself
-        function createDummyStream() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 10; canvas.height = 10;
-            return canvas.captureStream(1);
+        // --- MONITOR LOGIC ---
+        function initMonitor() {
+            // 1. Generate random 6-digit code
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // 2. Initialize Peer with that code
+            peer = new Peer(ID_PREFIX + code);
+
+            peer.on('open', (id) => {
+                document.getElementById('setup').style.display = 'none';
+                document.getElementById('monitor-ui').style.display = 'grid';
+                document.getElementById('session-code-display').innerText = `CODE: ${code}`;
+                console.log("Monitor started with code: " + code);
+            });
+
+            // 3. Listen for incoming cameras
+            peer.on('call', (call) => {
+                call.answer(); // No need to send video back
+                call.on('stream', (remoteStream) => {
+                    handleNewCamera(call.peer, remoteStream);
+                });
+            });
+
+            peer.on('error', (err) => {
+                if(err.type === 'unavailable-id') {
+                    alert("Code collision! Try clicking Monitor again.");
+                    location.reload();
+                }
+            });
         }
 
-        peer.on('open', (id) => {
-            document.getElementById('my-id').innerText = id;
-            dummyStream = createDummyStream();
-        });
+        function handleNewCamera(peerId, stream) {
+            const camId = `CAM-${Object.keys(activeStreams).length + 1}`;
+            activeStreams[camId] = stream;
 
-        // --- CAMERA ROLE (PHONE) ---
-        async function startCamera() {
+            // Remove "Waiting" message
+            const msg = document.getElementById('no-cams-msg');
+            if(msg) msg.remove();
+
+            // Add button
+            const btn = document.createElement('button');
+            btn.className = 'cam-btn';
+            btn.id = 'btn-' + camId;
+            btn.innerText = `> ${camId} [ONLINE]`;
+            btn.onclick = () => switchCam(camId);
+            document.getElementById('btn-container').appendChild(btn);
+
+            // Auto-switch to first camera if nothing is playing
+            if(Object.keys(activeStreams).length === 1) {
+                switchCam(camId);
+            }
+        }
+
+        // --- CAMERA LOGIC ---
+        async function initCamera() {
+            const code = document.getElementById('join-code').value.trim();
+            if(code.length !== 6) return alert("Enter a valid 6-digit code.");
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: "environment" }, 
                     audio: false 
                 });
-                
-                // When the PC calls, give it the phone video
-                peer.on('call', (call) => {
-                    call.answer(stream);
+
+                peer = new Peer(); // Random ID for phone
+                peer.on('open', () => {
+                    const call = peer.call(ID_PREFIX + code, stream);
+                    alert("CONNECTED. Keep this screen on.");
                 });
-                
-                alert("NODE ONLINE. Leave this screen open and copy the ID to your PC.");
             } catch (err) {
-                alert("CAMERA ERROR: Check permissions.");
+                alert("Camera Error: " + err.message);
             }
         }
 
-        // --- MONITOR ROLE (PC) ---
-        function connectToCamera() {
-            const remoteId = document.getElementById('peer-id-input').value.trim();
-            if(!remoteId) return;
-
-            // We call the phone, sending our dummy stream
-            const call = peer.call(remoteId, dummyStream);
-            
-            call.on('stream', (remoteStream) => {
-                const camNum = Object.keys(activeStreams).length + 1;
-                const label = `CAM 0${camNum}`;
-                
-                activeStreams[label] = remoteStream;
-                addCamButton(label);
-                
-                document.getElementById('peer-id-input').value = "";
-                alert(label + " CONNECTED");
-            });
-
-            call.on('error', (err) => alert("Connection Failed: " + err));
-        }
-
-        function addCamButton(label) {
-            const btn = document.createElement('button');
-            btn.className = 'cam-btn';
-            btn.id = 'btn-' + label;
-            btn.innerText = label;
-            btn.onclick = () => switchCam(label);
-            document.getElementById('btn-container').appendChild(btn);
-        }
-
-        function switchCam(label) {
+        // --- UI HELPERS ---
+        function switchCam(id) {
             const video = document.getElementById('video-feed');
-            const staticOverlay = document.getElementById('static-overlay');
+            const staticOverlay = document.getElementById('static');
             
-            // UI Feedback
-            document.getElementById('cam-label').innerText = label;
+            document.getElementById('cam-label').innerText = id;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn-' + label).classList.add('active');
+            document.getElementById('btn-' + id).classList.add('active');
 
-            // Set Stream
-            video.srcObject = activeStreams[label];
-
-            // FNAF Glitch Effect
-            staticOverlay.style.opacity = "0.7";
-            setTimeout(() => { 
-                staticOverlay.style.opacity = "0.05"; 
-            }, 300);
-        }
-
-        function showMonitor() {
-            if (Object.keys(activeStreams).length === 0) {
-                alert("No cameras connected!");
-                return;
-            }
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('monitor-ui').style.display = 'grid';
-            switchCam(Object.keys(activeStreams)[0]);
+            video.srcObject = activeStreams[id];
+            
+            // Glitch Effect
+            staticOverlay.style.opacity = "0.8";
+            setTimeout(() => staticOverlay.style.opacity = "0.05", 400);
         }
     </script>
 </body>
