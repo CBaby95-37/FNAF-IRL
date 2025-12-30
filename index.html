@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-MASTER-V30">
-    <title>Fazbear Surveillance - MASTER v30.0</title>
+    <meta name="version" content="20251229-MANUAL-BONNIE-V31">
+    <title>Fazbear Surveillance - v31.0 MASTER</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
@@ -16,11 +16,10 @@
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
         #freddy-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #110000; text-align: center; border: 5px solid #300; position: relative; z-index: 1; }
 
-        /* --- SETUP UI --- */
+        /* --- UI ELEMENTS --- */
         .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; }
         input, select { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 90%; text-align: center; font-size: 1rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 5px; }
-        button:hover { background: #fff; }
         #lan-found-btn { display: none; width: 100%; background: var(--fnaf-blue); color: white; animation: pulse 1.5s infinite; border: 2px solid white; margin-bottom: 10px; }
 
         /* --- MONITOR SCREEN --- */
@@ -33,6 +32,12 @@
         #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3.5rem; color: #fff; z-index: 20; text-shadow: 0 0 10px #fff; }
         #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2.2rem; z-index: 20; text-shadow: 2px 2px #000; }
         #signal-lost-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3rem; color: white; text-shadow: 0 0 15px red; display: none; z-index: 25; }
+
+        /* --- FREDDY UI --- */
+        #freddle-count { font-size: 5rem; color: var(--fnaf-red); margin: 20px; text-shadow: 0 0 20px red; }
+        #freddy-timer-bar { width: 80%; height: 30px; background: #300; border: 2px solid red; margin-bottom: 20px; position: relative; }
+        #freddy-timer-fill { height: 100%; background: red; width: 100%; transition: width 0.2s linear; }
+        #light-warning { color: white; background: red; padding: 10px; font-size: 1.5rem; display: none; animation: blink 0.2s infinite; }
 
         /* --- SIDEBAR --- */
         #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 8px; border-left: 1px solid #333; overflow-y: auto; }
@@ -50,15 +55,11 @@
         #shock-btn.disabled { background: #333; color: #555; border-color: #555; animation: none; cursor: default; }
         #shock-timer { display: none; position: absolute; bottom: 20%; right: 7%; font-size: 3rem; color: var(--fnaf-blue); z-index: 30; font-weight: bold; text-shadow: 0 0 10px #fff; }
 
-        /* --- FREDDY UI --- */
-        #freddle-count { font-size: 5rem; color: var(--fnaf-red); margin: 20px; text-shadow: 0 0 20px red; }
-        #freddy-timer-bar { width: 80%; height: 30px; background: #300; border: 2px solid red; margin-bottom: 20px; position: relative; }
-        #freddy-timer-fill { height: 100%; background: red; width: 100%; transition: width 0.2s linear; }
-        #light-warning { color: white; background: red; padding: 10px; font-size: 1.5rem; display: none; animation: blink 0.2s infinite; }
-
         /* --- EFFECTS --- */
-        /* Flash Z-Index: 40001 (Behind Static, Above Video) */
         #white-flash { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40001; pointer-events: none; }
+        #jumpscare-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 30000; background: #000; }
+        #jumpscare-video { width: 100%; height: 100%; object-fit: cover; }
+        #gameover-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 31000; flex-direction: column; align-items: center; justify-content: center; color: red; opacity: 1; transition: opacity 0.5s ease-out; }
 
         /* --- OVERLAYS --- */
         .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; padding: 30px; z-index: 20000; text-align: center; border: 4px solid #fff; width: 80%; max-width: 500px; }
@@ -66,24 +67,13 @@
         #settings-overlay { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; border: 2px solid var(--fnaf-blue); padding: 25px; z-index: 21000; width: 300px; box-shadow: 0 0 20px var(--fnaf-blue); }
         #update-modal { border-color: var(--fnaf-yellow); z-index: 25000; }
 
-        /* --- JUMPSCARE & GAME OVER --- */
-        #jumpscare-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 30000; background: #000; }
-        #jumpscare-video { width: 100%; height: 100%; object-fit: cover; }
-        
-        #gameover-screen { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; z-index: 31000; flex-direction: column; 
-            align-items: center; justify-content: center; color: red;
-            opacity: 1; transition: opacity 0.5s ease-out;
-        }
-
         /* --- CAMERA UI --- */
         #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; cursor: pointer; }
         .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 15px; font-weight: bold; }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        @keyframes blink-fast { 0% { background: var(--fnaf-blue); } 50% { background: #fff; color: #000; } 100% { background: var(--fnaf-blue); } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        @keyframes blink-fast { 0% { background: var(--fnaf-blue); } 50% { background: #fff; color: #000; } 100% { background: var(--fnaf-blue); } }
     </style>
 </head>
 <body>
@@ -168,6 +158,8 @@
         <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
         <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 25px;">STEALTH MODE</button>
         <audio id="intercom-audio" autoplay playsinline></audio>
+        <!-- Audio Cue for Manual Bonnie -->
+        <audio id="bonnie-beep" src="sounds/Bonnie_beep.mp3"></audio>
     </div>
 
     <!-- FREDDY ROLE -->
@@ -190,7 +182,8 @@
         let peer = null, activeStreams = {}, activeConns = {}, nodeData = {}, currentLabel = null;
         let isMonitor = false, isFreddy = false, monitorMicStream = null, nightRunning = false;
         let startTime = null, timerInterval = null, currentHour = 12;
-        let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, moveInterval: null, shockActive: false, timeLeft: 10, shockInt: null, manualScanInt: null };
+        
+        let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, moveInterval: null, shockActive: false, timeLeft: 10, shockInt: null, manualScanInt: null, rushing: false };
         let freddyConfig = { ai: 5, timer: 23, maxTime: 23, freddles: 0, interval: null, lightCheckInt: null, stunned: false };
         let monitorConn = null, lanCodeFound = null;
         
@@ -201,8 +194,7 @@
 
         window.onload = () => {
             if (localStorage.getItem('fnaf_last_code')) document.getElementById('reconnect-btn').style.display = 'block';
-            setInterval(checkForUpdates, 300000);
-            scanForLanMonitor();
+            setInterval(checkForUpdates, 300000); scanForLanMonitor();
         };
 
         // --- LAN DISCOVERY ---
@@ -210,16 +202,7 @@
         async function startLanBeacon(code) { const id = await getSafeIpId(); if(!id) return; const b = new Peer(id); b.on('connection', c=>{ c.on('open', ()=>{ c.send({type:'DISCOVERY',code:code}); setTimeout(()=>c.close(),1000); }); }); }
         async function scanForLanMonitor() { const id = await getSafeIpId(); if(!id) return; const s = new Peer(); s.on('open', ()=>{ const c = s.connect(id); c.on('data', d=>{ if(d.type==='DISCOVERY'){ lanCodeFound = d.code; document.getElementById('lan-found-btn').style.display='block'; document.getElementById('lan-found-btn').innerText=`FOUND MONITOR (${d.code})`; } }); c.on('error', ()=>{}); }); }
         function connectLan() { if(lanCodeFound) initCamera(lanCodeFound); }
-
-        async function checkForUpdates() {
-            try {
-                const res = await fetch(window.location.href, { method: 'GET', cache: 'no-cache' });
-                const text = await res.text();
-                const remote = text.match(/meta name="version" content="(.*?)"/);
-                const local = document.querySelector('meta[name="version"]').content;
-                if (remote && remote[1] !== local) document.getElementById('update-modal').style.display = 'block';
-            } catch (e) {}
-        }
+        async function checkForUpdates() { try { const res = await fetch(window.location.href, { method: 'GET', cache: 'no-cache' }); const text = await res.text(); const remote = text.match(/meta name="version" content="(.*?)"/); const local = document.querySelector('meta[name="version"]').content; if (remote && remote[1] !== local) document.getElementById('update-modal').style.display = 'block'; } catch (e) {} }
 
         // --- MONITOR CORE ---
         async function initMonitor() {
@@ -313,7 +296,7 @@
         function startTalk() { if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = true; document.getElementById('talk-btn').classList.add('active'); }
         function stopTalk() { if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = false; document.getElementById('talk-btn').classList.remove('active'); }
 
-        // --- NIGHT CONTROL ---
+        // --- NIGHT TIMER ---
         function toggleTimer() {
             if (!isMonitor) return;
             nightRunning = !nightRunning;
@@ -329,15 +312,19 @@
                 
                 Object.values(activeConns).forEach(c => c.send({ type: 'START_NIGHT', freddyAi: fAi }));
                 bonnieConfig.ai = bAi; bonnieConfig.mode = bMode;
-                if (bonnieConfig.mode === 'robot') startBonnieAI();
-                else if (bonnieConfig.mode === 'manual') startPurpleTracking();
+                bonnieConfig.rushing = false;
+                startBonnieAI();
+                if (bMode === 'manual') startPurpleTracking();
             } else {
                 stopNightLogic();
             }
         }
 
         function stopNightLogic() {
-            nightRunning = false; clearInterval(timerInterval); stopBonnieAI(); clearInterval(bonnieConfig.manualScanInt);
+            nightRunning = false;
+            clearInterval(timerInterval);
+            clearInterval(bonnieConfig.moveInterval);
+            clearInterval(bonnieConfig.manualScanInt);
             document.getElementById('timer-control-btn').innerText = "START NIGHT (F4)";
             document.getElementById('timer-control-btn').classList.remove('running');
             Object.values(activeConns).forEach(c => c.send({ type: 'STOP_NIGHT' }));
@@ -368,37 +355,59 @@
         function startBonnieAI() {
             clearInterval(bonnieConfig.moveInterval);
             bonnieConfig.moveInterval = setInterval(() => {
-                if (bonnieConfig.shockActive) return;
-                if (Math.floor(Math.random() * 20) + 1 <= bonnieConfig.ai) {
-                    const keys = Object.keys(activeStreams);
-                    if (keys.length > 0) {
-                        bonnieConfig.currentCam = keys[Math.floor(Math.random() * keys.length)];
-                        if (Math.random() > 0.6) triggerShock();
-                        checkBonnie();
+                if (bonnieConfig.shockActive || bonnieConfig.rushing) return;
+                
+                if (bonnieConfig.mode === 'robot') {
+                    if (Math.floor(Math.random() * 20) + 1 <= bonnieConfig.ai) {
+                        const keys = Object.keys(activeStreams);
+                        if (keys.length > 0) {
+                            bonnieConfig.currentCam = keys[Math.floor(Math.random() * keys.length)];
+                            if (Math.random() > 0.6) triggerShock(); // Trigger shock chance
+                            checkBonnie();
+                        }
                     }
+                } else if (bonnieConfig.mode === 'manual') {
+                    // Send Audio Cue to cameras for manual movement
+                    Object.values(activeConns).forEach(c => c.send({ type: 'BONNIE_BEEP' }));
+                    // Logic handled in Tracking loop
                 }
             }, 5000);
         }
 
+        // Manual Mode: Scan current feed for Purple
         function startPurpleTracking() {
             clearInterval(bonnieConfig.manualScanInt);
             const cvs = document.getElementById('cv-canvas'); const ctx = cvs.getContext('2d');
             bonnieConfig.manualScanInt = setInterval(() => {
-                if (bonnieConfig.shockActive) return;
-                let foundCam = null;
-                // Only scan current cam for performance
-                if (currentLabel) {
+                let foundOnCurrent = false;
+                
+                // Only scanning the active video feed for performance
+                if (currentLabel && !bonnieConfig.rushing) {
                     const mainVid = document.getElementById('video-feed');
                     if (mainVid.readyState === 4) {
                         cvs.width = 50; cvs.height = 50; ctx.drawImage(mainVid, 0, 0, 50, 50);
                         const d = ctx.getImageData(0,0,50,50).data;
                         let count = 0;
                         for(let i=0; i<d.length; i+=4) if (d[i]>60 && d[i+2]>60 && d[i+1]<100 && d[i]>d[i+1]+20 && d[i+2]>d[i+1]+20) count++;
-                        if (count > 50) foundCam = currentLabel;
+                        if (count > 50) foundOnCurrent = true;
                     }
                 }
-                if (foundCam) { bonnieConfig.currentCam = foundCam; checkBonnie(); }
-                updateShockUI();
+
+                if (foundOnCurrent) {
+                    bonnieConfig.currentCam = currentLabel;
+                    // Auto-trigger shock opportunity if found (Manual Mode Mechanic)
+                    if (!bonnieConfig.shockActive) triggerShock(); 
+                } else {
+                    bonnieConfig.currentCam = null; // Hidden
+                }
+                
+                checkBonnie();
+                
+                // RUSH MECHANIC: If rushing and NOT detected (hidden), GAME OVER
+                if (bonnieConfig.rushing && !bonnieConfig.currentCam) {
+                    triggerJumpscare(JUMPSCARE_BONNIE);
+                }
+
             }, 500);
         }
 
@@ -408,10 +417,29 @@
             document.getElementById('shock-timer').style.display = 'block';
             document.getElementById('static-canvas').style.opacity = "0.5";
             clearInterval(bonnieConfig.shockInt);
+            
             bonnieConfig.shockInt = setInterval(() => {
+                // Pause timer if Bonnie is hidden (Manual/Purple Tracking)
+                if (bonnieConfig.mode === 'manual' && !bonnieConfig.currentCam) return;
+
                 bonnieConfig.timeLeft--;
                 document.getElementById('shock-timer').innerText = bonnieConfig.timeLeft;
-                if (bonnieConfig.timeLeft <= 0) triggerJumpscare(JUMPSCARE_BONNIE);
+                
+                if (bonnieConfig.timeLeft <= 0) {
+                    // FAILED SHOCK -> RUSH MODE
+                    clearInterval(bonnieConfig.shockInt);
+                    bonnieConfig.shockActive = false;
+                    bonnieConfig.rushing = true;
+                    document.getElementById('shock-btn').style.display = 'none';
+                    document.getElementById('shock-timer').style.display = 'none';
+                    document.getElementById('static-canvas').style.opacity = "0.08";
+                    
+                    // Note: Jumpscare triggers in Tracking Loop when he vanishes
+                    if (bonnieConfig.mode === 'robot') {
+                        // For Robot mode, force a "hide" then jumpscare shortly
+                        setTimeout(() => triggerJumpscare(JUMPSCARE_BONNIE), 2000); 
+                    }
+                }
             }, 1000);
         }
 
@@ -429,23 +457,23 @@
             if (currentLabel !== bonnieConfig.currentCam) return;
             const flash = document.getElementById('white-flash'); flash.style.display = 'block';
             setTimeout(() => flash.style.display = 'none', 100);
-            bonnieConfig.shockActive = false; clearInterval(bonnieConfig.shockInt);
+            
+            bonnieConfig.shockActive = false;
+            clearInterval(bonnieConfig.shockInt);
+            
             document.getElementById('shock-btn').style.display = 'none';
             document.getElementById('shock-timer').style.display = 'none';
             document.getElementById('static-canvas').style.opacity = "0.08";
-            bonnieConfig.currentCam = null; checkBonnie();
+            
+            bonnieConfig.currentCam = null; // He runs away
+            checkBonnie();
         }
 
-        function checkBonnie() { document.getElementById('bonnie-overlay').style.display = (bonnieConfig.mode === 'robot' && bonnieConfig.currentCam === currentLabel) ? 'block' : 'none'; updateShockUI(); }
+        function checkBonnie() { document.getElementById('bonnie-overlay').style.display = (bonnieConfig.currentCam && bonnieConfig.currentCam === currentLabel) ? 'block' : 'none'; updateShockUI(); }
 
         // --- CINEMATIC JUMPSCARE ---
         function triggerJumpscare(videoPath) {
             stopNightLogic();
-            Object.values(activeConns).forEach(c => c.send({ type: 'JUMPSCARE_SYNC', video: videoPath }));
-            playLocalJumpscare(videoPath);
-        }
-
-        function playLocalJumpscare(videoPath) {
             const vid = document.getElementById('jumpscare-video'); vid.src = videoPath;
             const overlay = document.getElementById('jumpscare-overlay');
             const gameOver = document.getElementById('gameover-screen');
@@ -456,17 +484,10 @@
             overlay.style.display = 'block';
             vid.currentTime = 0; vid.play().catch(e => {});
 
-            // 1.5s in: Static + Flash overlay
             setTimeout(() => { flash.style.display = 'block'; staticCanv.style.zIndex = "40002"; staticCanv.style.opacity = "0.9"; }, 1500);
-            
-            // 2.0s in: Cut to Black
-            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; }, 2000);
-            
-            // 2.5s in: Reveal Text
-            setTimeout(() => { flash.style.display = 'none'; staticCanv.style.zIndex = "10"; staticCanv.style.opacity = "0.08"; }, 2500);
-            
-            // 6.5s in: Fade out
-            setTimeout(() => { gameOver.style.opacity = 0; setTimeout(() => restartNight(), 500); }, 6500);
+            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' })); }, 2000);
+            setTimeout(() => { flash.style.display = 'none'; staticCanv.style.zIndex = "10"; staticCanv.style.opacity = "0.08"; }, 3000);
+            setTimeout(() => { gameOver.style.opacity = 0; setTimeout(() => restartNight(), 500); }, 7000);
         }
 
         function restartNight() {
@@ -475,7 +496,7 @@
             document.getElementById('clock-display').innerText = "12 AM";
             currentHour = 12;
             stopBonnieAI();
-            bonnieConfig.shockActive = false;
+            bonnieConfig.shockActive = false; bonnieConfig.rushing = false;
             document.getElementById('shock-btn').style.display = 'none';
             document.getElementById('shock-timer').style.display = 'none';
             document.getElementById('static-canvas').style.opacity = "0.08";
@@ -525,6 +546,7 @@
                     document.getElementById('watched-dot').style.visibility = w ? 'visible' : 'hidden';
                     document.getElementById('intercom-audio').muted = !w;
                 }
+                if (d.type === 'BONNIE_BEEP') document.getElementById('bonnie-beep').play().catch(e=>{});
             }
             if (d.type === 'TIME_SYNC' && role === 'camera') document.getElementById('phone-clock').innerText = d.time;
             if (d.type === 'WIN') { 
@@ -553,14 +575,29 @@
             }
         }
 
+        // --- LOCAL PLAYBACK FOR CLIENTS ---
+        function playLocalJumpscare(videoPath) {
+            const vid = document.getElementById('jumpscare-video'); vid.src = videoPath;
+            const overlay = document.getElementById('jumpscare-overlay');
+            const gameOver = document.getElementById('gameover-screen');
+            const staticCanv = document.getElementById('static-canvas');
+            const flash = document.getElementById('white-flash');
+            gameOver.style.opacity = "1"; overlay.style.display = 'block';
+            vid.currentTime = 0; vid.play().catch(e => console.log("Play failed", e));
+            setTimeout(() => { flash.style.display = 'block'; staticCanv.style.zIndex = "40002"; staticCanv.style.opacity = "0.9"; }, 1500);
+            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; }, 2000);
+            setTimeout(() => { flash.style.display = 'none'; staticCanv.style.zIndex = "10"; staticCanv.style.opacity = "0.08"; }, 3000);
+            setTimeout(() => { gameOver.style.opacity = 0; setTimeout(() => restartNight(), 500); }, 7000);
+        }
+
         // --- FREDDY LOOP ---
         function startFreddyLightDetection() {
             const vid = document.getElementById('freddy-cam-feed'); const cvs = document.getElementById('light-detect-canvas'); const ctx = cvs.getContext('2d');
             freddyConfig.lightCheckInt = setInterval(() => {
                 if (vid.readyState === 4) {
                     cvs.width = 50; cvs.height = 50; ctx.drawImage(vid, 0, 0, 50, 50);
-                    const d = ctx.getImageData(0,0,50,50).data;
-                    let b = 0; for(let i=0; i<d.length; i+=4) b += (d[i]+d[i+1]+d[i+2])/3;
+                    const data = ctx.getImageData(0,0,50,50).data;
+                    let b = 0; for(let i=0; i<data.length; i+=4) b += (data[i]+data[i+1]+data[i+2])/3;
                     const avg = b/(50*50);
                     if (avg > 160) {
                         if (!freddyConfig.stunned) { freddyConfig.stunned = true; freddyConfig.timer = freddyConfig.maxTime; document.getElementById('light-warning').style.display = 'block'; }
