@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-FINAL-TIMING">
-    <title>Fazbear Surveillance - v23.0 FINAL</title>
+    <meta name="version" content="20251229-LAN-DISCOVERY">
+    <title>Fazbear Surveillance - LAN v24.0</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { 
@@ -25,25 +25,27 @@
         #monitor-ui { display: none; grid-template-columns: 1fr 240px; height: 100vh; }
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
 
-        /* --- SETUP ELEMENTS --- */
-        .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; }
+        /* --- SETUP UI --- */
+        .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; position: relative; }
         input, select { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 90%; text-align: center; font-size: 1rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 5px; }
         button:hover { background: #fff; }
 
-        /* --- MONITOR VIEW --- */
+        /* LAN Button */
+        #lan-found-btn {
+            display: none; width: 100%; background: var(--fnaf-blue); color: white;
+            animation: pulse 1.5s infinite; border: 2px solid white; margin-bottom: 10px;
+        }
+
+        /* --- MONITOR SCREEN --- */
         #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
         #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
-        
-        /* STATIC CANVAS: Z-Index 10 normally, 40002 during jump */
         #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; transition: opacity 0.1s; }
         
         /* HUD */
         #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3.5rem; color: #fff; z-index: 20; text-shadow: 0 0 10px #fff; }
         #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2.2rem; z-index: 20; text-shadow: 2px 2px #000; }
         #signal-lost-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3rem; color: white; text-shadow: 0 0 15px red; display: none; z-index: 25; }
-        
-        /* Bonnie Visuals */
         #bonnie-overlay { position: absolute; bottom: 0; left: 5%; width: 35%; height: auto; z-index: 15; pointer-events: none; display: none; filter: brightness(0.6) contrast(1.2) grayscale(0.2); }
 
         /* --- SIDEBAR --- */
@@ -61,7 +63,6 @@
         #shock-timer { display: none; position: absolute; bottom: 20%; right: 7%; font-size: 3rem; color: var(--fnaf-blue); z-index: 30; font-weight: bold; text-shadow: 0 0 10px #fff; }
 
         /* --- EFFECTS --- */
-        /* Z-Index 40001 to sit BEHIND static (40002) but ABOVE video (30000) */
         #white-flash { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40001; pointer-events: none; }
 
         /* --- MODALS --- */
@@ -73,11 +74,9 @@
         /* --- JUMPSCARE & GAME OVER --- */
         #jumpscare-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 30000; background: #000; }
         #jumpscare-video { width: 100%; height: 100%; object-fit: cover; }
-        
         #gameover-screen { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; /* Pure Black Solid */
-            z-index: 31000; flex-direction: column; 
+            background: #000; z-index: 31000; flex-direction: column; 
             align-items: center; justify-content: center; color: red;
             opacity: 1; transition: opacity 0.5s ease-out;
         }
@@ -87,12 +86,12 @@
         .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 15px; font-weight: bold; }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
         @keyframes blink-fast { 0% { background: var(--fnaf-blue); } 50% { background: #fff; color: #000; } 100% { background: var(--fnaf-blue); } }
     </style>
 </head>
 <body>
 
-    <!-- VISUAL EFFECTS -->
     <div id="white-flash"></div>
 
     <!-- SETUP -->
@@ -102,19 +101,21 @@
             <button onclick="initMonitor()">ACT AS MONITOR</button>
         </div>
         <div class="menu-box">
+            <!-- AUTO DISCOVERY BUTTON -->
+            <button id="lan-found-btn" onclick="connectLan()">FOUND LOCAL MONITOR!</button>
+            
             <input type="number" id="join-code" placeholder="6-DIGIT CODE">
             <button onclick="initCamera()">ACT AS CAMERA</button>
             <button id="reconnect-btn" style="display:none; background:#222; color:var(--fnaf-green);" onclick="reconnectLast()">QUICK RECONNECT</button>
         </div>
     </div>
 
-    <!-- UPDATE NOTIF -->
+    <!-- MODALS -->
     <div id="update-modal" class="modal">
         <h2 style="color: var(--fnaf-yellow);">!! SYSTEM PATCH !!</h2>
         <button onclick="location.reload()" style="background: var(--fnaf-yellow);">INSTALL</button>
     </div>
 
-    <!-- SETTINGS -->
     <div id="settings-overlay">
         <h3 style="color: var(--fnaf-blue); margin: 0 0 15px 0;">AI CONFIG</h3>
         <label>BONNIE MODE:</label>
@@ -128,17 +129,14 @@
         <button onclick="closeSettings()" style="background: var(--fnaf-blue); color: #fff;">SAVE</button>
     </div>
 
-    <!-- WIN SCREEN -->
     <div id="win-screen" class="modal">
         <div style="font-size: 2rem;">5:59 AM</div>
         <div style="font-size: 8rem; margin: 10px 0; text-shadow: 0 0 20px #fff;">6 AM</div>
         <div style="font-size: 1.2rem; color: var(--fnaf-green);">SUCCESSFUL SHIFT</div>
     </div>
 
-    <!-- JUMPSCARE VIDEO -->
     <div id="jumpscare-overlay"><video id="jumpscare-video" src="videos/Bonnie_jumpscare.mp4" playsinline></video></div>
     
-    <!-- GAME OVER SCREEN -->
     <div id="gameover-screen">
         <h1 style="font-size: 6rem; text-shadow: 0 0 20px red;">GAME OVER</h1>
         <button onclick="restartNight()" style="width: auto; background: red; color: white; padding: 10px 50px;">RETRY</button>
@@ -164,7 +162,7 @@
         </div>
     </div>
 
-    <!-- CAMERA NODE -->
+    <!-- CAMERA -->
     <div id="camera-ui">
         <div id="phone-clock" style="font-size: 4rem; color: #fff; margin-bottom: 20px;">12 AM</div>
         <h2 id="my-node-label" style="font-size: 1.2rem;">NODE: ...</h2>
@@ -180,14 +178,61 @@
         let peer = null, activeStreams = {}, activeConns = {}, nodeData = {}, currentLabel = null;
         let isMonitor = false, monitorMicStream = null, nightRunning = false, startTime = null, timerInterval = null, currentHour = 12;
         let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, moveInterval: null, shockActive: false, timeLeft: 10, shockInt: null };
+        let lanCodeFound = null; // Stores code if LAN finds it
         const ID_PREFIX = "fnaf-sys-";
         const victorySound = new Audio('sounds/victory/fnaf1.mp3');
 
-        // --- UPDATE & RECONNECT ---
+        // --- STARTUP ---
         window.onload = () => {
             if (localStorage.getItem('fnaf_last_code')) document.getElementById('reconnect-btn').style.display = 'block';
             setInterval(checkForUpdates, 300000);
+            scanForLanMonitor(); // Start looking for monitor immediately
         };
+
+        // --- LAN DISCOVERY SYSTEM ---
+        async function getSafeIpId() {
+            try {
+                const ip = await (await fetch('https://api.ipify.org')).text();
+                return 'fnaf-disco-' + ip.replace(/\./g, '-');
+            } catch(e) { return null; }
+        }
+
+        // Monitor creates a "Beacon"
+        async function startLanBeacon(gameCode) {
+            const id = await getSafeIpId();
+            if (!id) return;
+            const beacon = new Peer(id);
+            beacon.on('connection', (conn) => {
+                conn.on('open', () => {
+                    conn.send({ type: 'DISCOVERY', code: gameCode });
+                    setTimeout(() => conn.close(), 1000); // Send and disconnect
+                });
+            });
+        }
+
+        // Camera looks for "Beacon"
+        async function scanForLanMonitor() {
+            const id = await getSafeIpId();
+            if (!id) return;
+            const scanner = new Peer(); 
+            scanner.on('open', () => {
+                const conn = scanner.connect(id);
+                conn.on('data', (data) => {
+                    if (data.type === 'DISCOVERY') {
+                        lanCodeFound = data.code;
+                        const btn = document.getElementById('lan-found-btn');
+                        btn.style.display = 'block';
+                        btn.innerText = `FOUND MONITOR (CODE: ${lanCodeFound})`;
+                    }
+                });
+                // If connection fails, no monitor on LAN. That's fine.
+                conn.on('error', () => {});
+            });
+        }
+
+        function connectLan() {
+            if(lanCodeFound) initCamera(lanCodeFound);
+        }
 
         async function checkForUpdates() {
             try {
@@ -214,6 +259,7 @@
                 document.getElementById('monitor-ui').style.display = 'grid';
                 alert("OFFICE CODE: " + code);
                 startStaticLoop();
+                startLanBeacon(code); // Start broadcasting IP
             });
 
             peer.on('call', (call) => {
@@ -296,7 +342,7 @@
         function startTalk() { if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = true; document.getElementById('talk-btn').classList.add('active'); }
         function stopTalk() { if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = false; document.getElementById('talk-btn').classList.remove('active'); }
 
-        // --- NIGHT TIMER ---
+        // --- NIGHT LOGIC ---
         function toggleTimer() {
             if (!isMonitor) return;
             nightRunning = !nightRunning;
@@ -324,7 +370,9 @@
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             let hr = (mins === 0) ? 12 : mins;
+            
             if (mins >= 6) { hr = 6; clearInterval(timerInterval); triggerWin(); }
+
             if (hr !== currentHour) {
                 currentHour = hr;
                 document.getElementById('clock-display').innerText = `${hr} AM`;
@@ -346,7 +394,7 @@
             }, 11000);
         }
 
-        // --- BONNIE AI & CINEMATIC JUMPSCARE ---
+        // --- BONNIE AI ---
         function openSettings() { document.getElementById('settings-overlay').style.display = 'block'; }
         function closeSettings() {
             bonnieConfig.mode = document.getElementById('setting-bonnie-mode').value;
@@ -409,22 +457,19 @@
             const staticCanv = document.getElementById('static-canvas');
             const flash = document.getElementById('white-flash');
 
-            // Reset Game Over Visibility
             gameOver.style.opacity = "1";
-
-            // 1. Play Video
             overlay.style.display = 'block';
             vid.currentTime = 0;
             vid.play().catch(e => {});
 
-            // 2. Start Transition Effects (1.5s in) - Static & Flash over Video
+            // Effects overlap (1.5s in)
             setTimeout(() => {
                 flash.style.display = 'block';
-                staticCanv.style.zIndex = "40002"; // Static on top
-                staticCanv.style.opacity = "0.9";  // Heavy static
-            }, 1000); // Start effect 1s into video (so it lasts 1.5s if cut is at 2.5s)
+                staticCanv.style.zIndex = "40002";
+                staticCanv.style.opacity = "0.9";
+            }, 1500);
 
-            // 3. Cut to Black (2.5s in) - Keep Static & Flash
+            // Cut to Black (2.5s in)
             setTimeout(() => {
                 vid.pause();
                 overlay.style.display = 'none';
@@ -432,20 +477,17 @@
                 Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' }));
             }, 2500);
 
-            // 4. Reveal Text (0.5s later -> 3.0s total)
+            // Reveal Text (3.0s in)
             setTimeout(() => {
                 flash.style.display = 'none';
-                staticCanv.style.zIndex = "10"; // Lower static
-                staticCanv.style.opacity = "0.08"; // Normal static
+                staticCanv.style.zIndex = "10";
+                staticCanv.style.opacity = "0.08";
             }, 3000);
 
-            // 5. Fade Out (4s later -> 7.0s total)
+            // Reset (7.0s in)
             setTimeout(() => {
                 gameOver.style.opacity = 0;
-                // 6. Reset UI
-                setTimeout(() => {
-                    restartNight();
-                }, 500);
+                setTimeout(() => { restartNight(); }, 500);
             }, 7000);
         }
 
