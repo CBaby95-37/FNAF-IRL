@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-NO-ECHO">
-    <title>Fazbear Surveillance - v26.0 NO ECHO</title>
+    <meta name="version" content="20251229-AUDIO-ISOLATED">
+    <title>Fazbear Surveillance - v27.0 FINAL</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { 
@@ -175,7 +175,7 @@
     <!-- FREDDY ROLE -->
     <div id="freddy-ui">
         <h1 style="color:red; margin:0;">FREDDY MODE</h1>
-        <p style="font-size:0.8rem; color:#888;">HOLD DEVICE FACING MONITOR</p>
+        <p style="font-size:0.8rem; color:#888;">NO AUDIO (ECHO PREVENTION)</p>
         <div id="freddle-count">FREDDLES: 0/3</div>
         <div id="freddy-timer-bar"><div id="freddy-timer-fill"></div></div>
         <div id="light-warning">⚠️ FLASHLIGHT DETECTED ⚠️</div>
@@ -236,7 +236,9 @@
         }
 
         function handleIncomingStream(call, stream) {
+            // Monitor ignores Freddy video to keep grid clean
             if (call.metadata && call.metadata.role === 'freddy') return;
+
             const existing = nodeData[call.peer];
             stream.getAudioTracks().forEach(t => t.enabled = false);
             if (existing) {
@@ -414,10 +416,16 @@
             overlay.style.display = 'block';
             vid.currentTime = 0; vid.play().catch(e => {});
 
-            // Effects
+            // Effects (1.5s in)
             setTimeout(() => { flash.style.display = 'block'; staticCanv.style.zIndex = "40002"; staticCanv.style.opacity = "0.9"; }, 1500);
-            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' })); }, 2000);
+            
+            // Cut to Black (2.5s in)
+            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' })); }, 2500);
+            
+            // Reveal (3.0s in)
             setTimeout(() => { flash.style.display = 'none'; staticCanv.style.zIndex = "10"; staticCanv.style.opacity = "0.08"; }, 3000);
+            
+            // Fade Out (7.0s in)
             setTimeout(() => { gameOver.style.opacity = 0; setTimeout(() => restartNight(), 500); }, 7000);
         }
 
