@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-AUDIO-ISOLATED">
-    <title>Fazbear Surveillance - v27.0 FINAL</title>
+    <meta name="version" content="20251229-FREDDY-FIX">
+    <title>Fazbear Surveillance - v28.0 FIXED</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { 
@@ -26,7 +26,7 @@
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
         #freddy-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #110000; text-align: center; border: 5px solid #300; }
 
-        /* --- SETUP ELEMENTS --- */
+        /* --- UI ELEMENTS --- */
         .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; }
         input, select { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 90%; text-align: center; font-size: 1rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 5px; }
@@ -180,7 +180,6 @@
         <div id="freddy-timer-bar"><div id="freddy-timer-fill"></div></div>
         <div id="light-warning">⚠️ FLASHLIGHT DETECTED ⚠️</div>
         <p style="font-size:0.8rem;">STATUS: <span id="freddy-status">WAITING FOR NIGHT...</span></p>
-        <!-- Hidden video for light detection -->
         <video id="freddy-cam-feed" autoplay playsinline style="width: 1px; height: 1px; opacity: 0;"></video>
         <canvas id="light-detect-canvas" style="display:none;"></canvas>
     </div>
@@ -195,6 +194,7 @@
         
         let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, moveInterval: null, shockActive: false, timeLeft: 10, shockInt: null };
         let freddyConfig = { ai: 5, timer: 23, maxTime: 23, freddles: 0, interval: null, lightCheckInt: null, stunned: false };
+        let monitorConn = null; // Important for Freddy to send Jumpscare back
         
         const ID_PREFIX = "fnaf-sys-";
         const victorySound = new Audio('sounds/victory/fnaf1.mp3');
@@ -236,9 +236,7 @@
         }
 
         function handleIncomingStream(call, stream) {
-            // Monitor ignores Freddy video to keep grid clean
             if (call.metadata && call.metadata.role === 'freddy') return;
-
             const existing = nodeData[call.peer];
             stream.getAudioTracks().forEach(t => t.enabled = false);
             if (existing) {
@@ -324,7 +322,6 @@
                 const bMode = document.getElementById('setting-bonnie-mode').value;
                 
                 Object.values(activeConns).forEach(c => c.send({ type: 'START_NIGHT', freddyAi: fAi }));
-                
                 bonnieConfig.ai = bAi; bonnieConfig.mode = bMode;
                 if (bonnieConfig.mode === 'robot') startBonnieAI();
             } else {
@@ -416,16 +413,9 @@
             overlay.style.display = 'block';
             vid.currentTime = 0; vid.play().catch(e => {});
 
-            // Effects (1.5s in)
             setTimeout(() => { flash.style.display = 'block'; staticCanv.style.zIndex = "40002"; staticCanv.style.opacity = "0.9"; }, 1500);
-            
-            // Cut to Black (2.5s in)
-            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' })); }, 2500);
-            
-            // Reveal (3.0s in)
+            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' })); }, 2000);
             setTimeout(() => { flash.style.display = 'none'; staticCanv.style.zIndex = "10"; staticCanv.style.opacity = "0.08"; }, 3000);
-            
-            // Fade Out (7.0s in)
             setTimeout(() => { gameOver.style.opacity = 0; setTimeout(() => restartNight(), 500); }, 7000);
         }
 
@@ -442,14 +432,13 @@
             Object.values(activeConns).forEach(c => c.send({ type: 'RESET' }));
         }
 
-        // --- STANDARD CAMERA ---
+        // --- CAMERA & FREDDY STARTUP ---
         async function initCamera(reconnectCode = null) {
             const code = reconnectCode || document.getElementById('join-code').value;
             if (code.length !== 6) return;
             setupPeer(code, 'camera');
         }
 
-        // --- FREDDY ---
         async function initFreddy() {
             const code = document.getElementById('join-code').value;
             if (code.length !== 6) return;
@@ -463,8 +452,6 @@
         async function setupPeer(code, role) {
             try {
                 if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-                
-                // NO AUDIO FOR FREDDY
                 const useAudio = (role === 'camera');
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: useAudio, video: { facingMode: "environment" } });
                 
@@ -480,11 +467,12 @@
                     }
                     const call = peer.call(ID_PREFIX + code, stream, { metadata: { role: role } });
                     call.on('stream', (rs) => { 
-                        if (role === 'freddy') return; // Ignore monitor audio
+                        if (role === 'freddy') return; 
                         const audio = document.getElementById('intercom-audio');
                         audio.srcObject = rs; audio.muted = true; 
                     });
                     const conn = peer.connect(ID_PREFIX + code, { metadata: { role: role } });
+                    monitorConn = conn; // Save for Freddy Jumpscare signal
                     conn.on('data', (d) => handleClientData(d, role));
                 });
             } catch (e) { alert("Permission Denied"); }
@@ -500,13 +488,10 @@
                     document.getElementById('intercom-audio').muted = !w;
                 }
             }
-            if (d.type === 'TIME_SYNC') {
-                if (role === 'camera') document.getElementById('phone-clock').innerText = d.time;
-            }
+            if (d.type === 'TIME_SYNC' && role === 'camera') document.getElementById('phone-clock').innerText = d.time;
             if (d.type === 'WIN') { 
                 victorySound.play().catch(e=>{});
-                const w = document.getElementById('win-screen');
-                w.style.display = 'flex'; setTimeout(()=>w.style.opacity=1,100);
+                const w = document.getElementById('win-screen'); w.style.display = 'flex'; setTimeout(()=>w.style.opacity=1,100);
                 setTimeout(()=> { w.style.opacity=0; setTimeout(()=>w.style.display='none',1000); },11000);
             }
             if (d.type === 'GAMEOVER') {
@@ -519,7 +504,6 @@
                 if(role==='camera') { document.getElementById('camera-ui').style.display = 'flex'; document.getElementById('phone-clock').innerText="12 AM"; }
                 if(role==='freddy') { document.getElementById('freddy-ui').style.display = 'flex'; resetFreddy(); }
             }
-            
             if (role === 'freddy') {
                 if (d.type === 'START_NIGHT') {
                     freddyConfig.timer = 23 - d.freddyAi;
@@ -535,24 +519,19 @@
             }
         }
 
-        // --- FREDDY GAMEPLAY ---
+        // --- FREDDY LOOP ---
         function startFreddyLightDetection() {
             const vid = document.getElementById('freddy-cam-feed');
             const cvs = document.getElementById('light-detect-canvas');
             const ctx = cvs.getContext('2d');
-            
             freddyConfig.lightCheckInt = setInterval(() => {
                 if (vid.readyState === 4) {
                     cvs.width = 50; cvs.height = 50; 
                     ctx.drawImage(vid, 0, 0, 50, 50);
                     const data = ctx.getImageData(0,0,50,50).data;
-                    let brightnessSum = 0;
-                    for(let i=0; i<data.length; i+=4) {
-                        brightnessSum += (data[i] + data[i+1] + data[i+2]) / 3;
-                    }
-                    const avg = brightnessSum / (50*50);
-                    
-                    if (avg > 230) {
+                    let b = 0; for(let i=0; i<data.length; i+=4) b += (data[i]+data[i+1]+data[i+2])/3;
+                    const avg = b/(50*50);
+                    if (avg > 160) {
                         if (!freddyConfig.stunned) {
                             freddyConfig.stunned = true;
                             freddyConfig.timer = freddyConfig.maxTime;
@@ -573,17 +552,14 @@
         function startFreddyLoop() {
             clearInterval(freddyConfig.interval);
             updateFreddyUI();
-            
             freddyConfig.interval = setInterval(() => {
                 if (freddyConfig.stunned) return;
-
                 freddyConfig.timer--;
                 const pct = (freddyConfig.timer / freddyConfig.maxTime) * 100;
                 document.getElementById('freddy-timer-fill').style.width = pct + "%";
-
                 if (freddyConfig.timer <= 0) {
                     if (freddyConfig.freddles >= 3) {
-                        Object.values(activeConns).forEach(c => c.send({ type: 'JUMPSCARE_FREDDY' }));
+                        if(monitorConn) monitorConn.send({ type: 'JUMPSCARE_FREDDY' });
                         stopFreddyLoop();
                     } else {
                         setTimeout(() => {
