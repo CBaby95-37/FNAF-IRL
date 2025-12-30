@@ -3,50 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-LAN-DISCOVERY">
-    <title>Fazbear Surveillance - LAN v24.0</title>
+    <meta name="version" content="20251229-FREDDY-UPDATE">
+    <title>Fazbear Surveillance - v25.0</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { 
-            --fnaf-green: #00ff41; 
-            --fnaf-red: #8b0000; 
-            --fnaf-blue: #0041ff; 
-            --fnaf-yellow: #f1c40f; 
+            --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; 
         }
-        
-        body { 
-            background: #000; color: var(--fnaf-green); 
-            font-family: 'Courier New', monospace; margin: 0; 
-            overflow: hidden; text-transform: uppercase; 
-        }
+        body { background: #000; color: var(--fnaf-green); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; text-transform: uppercase; }
 
         /* --- LAYOUTS --- */
         #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px; text-align: center; }
         #monitor-ui { display: none; grid-template-columns: 1fr 240px; height: 100vh; }
         #camera-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #000; text-align: center; }
+        #freddy-ui { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; background: #110000; text-align: center; border: 5px solid #300; }
 
-        /* --- SETUP UI --- */
-        .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; position: relative; }
+        /* --- UI ELEMENTS --- */
+        .menu-box { border: 2px solid var(--fnaf-green); padding: 25px; background: rgba(0,20,0,0.4); width: 320px; }
         input, select { background: #000; border: 1px solid var(--fnaf-green); color: var(--fnaf-green); padding: 10px; width: 90%; text-align: center; font-size: 1rem; margin-bottom: 10px; }
         button { background: var(--fnaf-green); color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 5px; }
-        button:hover { background: #fff; }
-
-        /* LAN Button */
-        #lan-found-btn {
-            display: none; width: 100%; background: var(--fnaf-blue); color: white;
-            animation: pulse 1.5s infinite; border: 2px solid white; margin-bottom: 10px;
-        }
-
-        /* --- MONITOR SCREEN --- */
+        
+        /* --- MONITOR --- */
         #screen { position: relative; background: #050505; overflow: hidden; border-right: 2px solid #222; }
         #video-feed { width: 100%; height: 100%; object-fit: cover; filter: brightness(1.2) contrast(1.1) sepia(0.2); }
         #static-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08; pointer-events: none; z-index: 10; transition: opacity 0.1s; }
+        #bonnie-overlay { position: absolute; bottom: 0; left: 5%; width: 35%; height: auto; z-index: 15; pointer-events: none; display: none; filter: brightness(0.6) contrast(1.2) grayscale(0.2); }
         
-        /* HUD */
+        /* --- HUD --- */
         #clock-display { position: absolute; top: 30px; right: 30px; font-size: 3.5rem; color: #fff; z-index: 20; text-shadow: 0 0 10px #fff; }
         #cam-label { position: absolute; top: 30px; left: 30px; font-size: 2.2rem; z-index: 20; text-shadow: 2px 2px #000; }
         #signal-lost-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3rem; color: white; text-shadow: 0 0 15px red; display: none; z-index: 25; }
-        #bonnie-overlay { position: absolute; bottom: 0; left: 5%; width: 35%; height: auto; z-index: 15; pointer-events: none; display: none; filter: brightness(0.6) contrast(1.2) grayscale(0.2); }
+
+        /* --- FREDDY UI --- */
+        #freddle-count { font-size: 5rem; color: var(--fnaf-red); margin: 20px; text-shadow: 0 0 20px red; }
+        #freddy-timer-bar { width: 80%; height: 30px; background: #300; border: 2px solid red; margin-bottom: 20px; position: relative; }
+        #freddy-timer-fill { height: 100%; background: red; width: 100%; transition: width 0.2s linear; }
+        #light-warning { color: white; background: red; padding: 10px; font-size: 1.5rem; display: none; animation: blink 0.2s infinite; }
+        
+        /* --- MODALS --- */
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; padding: 30px; z-index: 20000; text-align: center; border: 4px solid #fff; width: 80%; max-width: 500px; }
+        #win-screen { border-color: var(--fnaf-yellow); background: rgba(0,0,0,0.95); opacity: 0; transition: opacity 1s ease-in-out; }
+        #settings-overlay { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; border: 2px solid var(--fnaf-blue); padding: 25px; z-index: 21000; width: 300px; box-shadow: 0 0 20px var(--fnaf-blue); }
+        #update-modal { border-color: var(--fnaf-yellow); z-index: 25000; }
+
+        /* --- EFFECTS --- */
+        #white-flash { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40001; pointer-events: none; }
+        #jumpscare-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 30000; background: #000; }
+        #jumpscare-video { width: 100%; height: 100%; object-fit: cover; }
+        #gameover-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 31000; flex-direction: column; align-items: center; justify-content: center; color: red; opacity: 1; transition: opacity 0.5s ease-out; }
 
         /* --- SIDEBAR --- */
         #sidebar { background: #111; padding: 10px; display: flex; flex-direction: column; gap: 8px; border-left: 1px solid #333; overflow-y: auto; }
@@ -57,36 +61,16 @@
         #timer-control-btn.running { background: var(--fnaf-red); }
         #talk-btn { margin-top: auto; background: #444; color: #fff; padding: 15px; border: 2px solid #666; font-size: 1rem; }
         #talk-btn.active { background: var(--fnaf-red); border-color: #fff; box-shadow: 0 0 15px var(--fnaf-red); }
-
-        /* --- SHOCK SYSTEM --- */
+        
+        /* Shock */
         #shock-btn { display: none; position: absolute; bottom: 10%; right: 5%; width: 160px; background: var(--fnaf-blue); color: white; border: 4px solid white; z-index: 30; animation: blink-fast 0.5s infinite; padding: 15px; font-size: 1.2rem; }
         #shock-timer { display: none; position: absolute; bottom: 20%; right: 7%; font-size: 3rem; color: var(--fnaf-blue); z-index: 30; font-weight: bold; text-shadow: 0 0 10px #fff; }
 
-        /* --- EFFECTS --- */
-        #white-flash { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40001; pointer-events: none; }
-
-        /* --- MODALS --- */
-        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; padding: 30px; z-index: 20000; text-align: center; border: 4px solid #fff; width: 80%; max-width: 500px; }
-        #win-screen { border-color: var(--fnaf-yellow); background: rgba(0,0,0,0.95); opacity: 0; transition: opacity 1s ease-in-out; }
-        #settings-overlay { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; border: 2px solid var(--fnaf-blue); padding: 25px; z-index: 21000; width: 300px; box-shadow: 0 0 20px var(--fnaf-blue); }
-        #update-modal { border-color: var(--fnaf-yellow); z-index: 25000; }
-
-        /* --- JUMPSCARE & GAME OVER --- */
-        #jumpscare-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 30000; background: #000; }
-        #jumpscare-video { width: 100%; height: 100%; object-fit: cover; }
-        #gameover-screen { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; z-index: 31000; flex-direction: column; 
-            align-items: center; justify-content: center; color: red;
-            opacity: 1; transition: opacity 0.5s ease-out;
-        }
-
-        /* --- CAMERA UI --- */
+        /* Camera UI */
         #stealth-screen { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; cursor: pointer; }
         .watched-indicator { color: var(--fnaf-red); font-size: 1.2rem; visibility: hidden; animation: blink 1s infinite; margin: 15px; font-weight: bold; }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
         @keyframes blink-fast { 0% { background: var(--fnaf-blue); } 50% { background: #fff; color: #000; } 100% { background: var(--fnaf-blue); } }
     </style>
 </head>
@@ -97,45 +81,45 @@
     <!-- SETUP -->
     <div id="setup">
         <h1 style="letter-spacing: 10px; color: white;">FAZBEAR SURVEILLANCE</h1>
+        <div class="menu-box"><button onclick="initMonitor()">ACT AS MONITOR</button></div>
         <div class="menu-box">
-            <button onclick="initMonitor()">ACT AS MONITOR</button>
-        </div>
-        <div class="menu-box">
-            <!-- AUTO DISCOVERY BUTTON -->
-            <button id="lan-found-btn" onclick="connectLan()">FOUND LOCAL MONITOR!</button>
-            
             <input type="number" id="join-code" placeholder="6-DIGIT CODE">
             <button onclick="initCamera()">ACT AS CAMERA</button>
+            <button onclick="initFreddy()" style="background: #500; color: white; border-color: red;">ACT AS FREDDY</button>
             <button id="reconnect-btn" style="display:none; background:#222; color:var(--fnaf-green);" onclick="reconnectLast()">QUICK RECONNECT</button>
         </div>
     </div>
 
-    <!-- MODALS -->
-    <div id="update-modal" class="modal">
-        <h2 style="color: var(--fnaf-yellow);">!! SYSTEM PATCH !!</h2>
-        <button onclick="location.reload()" style="background: var(--fnaf-yellow);">INSTALL</button>
-    </div>
-
+    <!-- SETTINGS -->
     <div id="settings-overlay">
-        <h3 style="color: var(--fnaf-blue); margin: 0 0 15px 0;">AI CONFIG</h3>
-        <label>BONNIE MODE:</label>
+        <h3 style="color: var(--fnaf-blue); margin: 0 0 15px 0;">SYSTEM CONFIG</h3>
+        <label>BONNIE AI:</label>
         <select id="setting-bonnie-mode">
             <option value="off">DISABLED</option>
             <option value="robot">ROBOT (AUTO)</option>
             <option value="manual">MANUAL</option>
         </select>
-        <label>DIFFICULTY (1-20):</label>
+        <label>BONNIE DIFFICULTY (1-20):</label>
         <input type="number" id="setting-bonnie-ai" value="5" min="1" max="20">
+        <hr style="border-color: #333;">
+        <label>FREDDY DIFFICULTY (0-20):</label>
+        <input type="number" id="setting-freddy-ai" value="5" min="0" max="20">
         <button onclick="closeSettings()" style="background: var(--fnaf-blue); color: #fff;">SAVE</button>
     </div>
 
+    <!-- OVERLAYS -->
+    <div id="update-modal" class="modal">
+        <h2 style="color: var(--fnaf-yellow);">!! SYSTEM PATCH !!</h2>
+        <button onclick="location.reload()" style="background: var(--fnaf-yellow);">INSTALL</button>
+    </div>
+    
     <div id="win-screen" class="modal">
         <div style="font-size: 2rem;">5:59 AM</div>
         <div style="font-size: 8rem; margin: 10px 0; text-shadow: 0 0 20px #fff;">6 AM</div>
         <div style="font-size: 1.2rem; color: var(--fnaf-green);">SUCCESSFUL SHIFT</div>
     </div>
 
-    <div id="jumpscare-overlay"><video id="jumpscare-video" src="videos/Bonnie_jumpscare.mp4" playsinline></video></div>
+    <div id="jumpscare-overlay"><video id="jumpscare-video" src="" playsinline></video></div>
     
     <div id="gameover-screen">
         <h1 style="font-size: 6rem; text-shadow: 0 0 20px red;">GAME OVER</h1>
@@ -151,7 +135,7 @@
             <div id="shock-timer">10</div>
             <button id="shock-btn" onclick="shockBonnie()">SHOCK</button>
             <canvas id="static-canvas"></canvas>
-            <img id="bonnie-overlay" src="textures/bonnie.png" alt="Bonnie">
+            <img id="bonnie-overlay" src="textures/bonnie.png">
             <video id="video-feed" autoplay playsinline></video>
         </div>
         <div id="sidebar">
@@ -162,13 +146,26 @@
         </div>
     </div>
 
-    <!-- CAMERA -->
+    <!-- STANDARD CAMERA -->
     <div id="camera-ui">
         <div id="phone-clock" style="font-size: 4rem; color: #fff; margin-bottom: 20px;">12 AM</div>
-        <h2 id="my-node-label" style="font-size: 1.2rem;">NODE: ...</h2>
+        <h2 id="my-node-label">NODE: ...</h2>
         <div id="watched-dot" class="watched-indicator">● BEING WATCHED</div>
-        <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 25px;">ENABLE STEALTH</button>
+        <button onclick="enableStealth()" style="background: var(--fnaf-blue); color: white; width: 80%; padding: 25px;">STEALTH MODE</button>
         <audio id="intercom-audio" autoplay playsinline></audio>
+    </div>
+
+    <!-- FREDDY ROLE UI -->
+    <div id="freddy-ui">
+        <h1 style="color:red; margin:0;">FREDDY MODE</h1>
+        <p style="font-size:0.8rem; color:#888;">HOLD DEVICE FACING MONITOR</p>
+        <div id="freddle-count">FREDDLES: 0/3</div>
+        <div id="freddy-timer-bar"><div id="freddy-timer-fill"></div></div>
+        <div id="light-warning">⚠️ FLASHLIGHT DETECTED ⚠️</div>
+        <p style="font-size:0.8rem;">STATUS: <span id="freddy-status">WAITING FOR NIGHT...</span></p>
+        <!-- Hidden video for light detection -->
+        <video id="freddy-cam-feed" autoplay playsinline style="width: 1px; height: 1px; opacity: 0;"></video>
+        <canvas id="light-detect-canvas" style="display:none;"></canvas>
     </div>
 
     <div id="stealth-screen" onclick="disableStealth()"></div>
@@ -176,63 +173,22 @@
     <script>
         // --- GLOBALS ---
         let peer = null, activeStreams = {}, activeConns = {}, nodeData = {}, currentLabel = null;
-        let isMonitor = false, monitorMicStream = null, nightRunning = false, startTime = null, timerInterval = null, currentHour = 12;
+        let isMonitor = false, isFreddy = false, monitorMicStream = null, nightRunning = false;
+        let startTime = null, timerInterval = null, currentHour = 12;
+        
+        // Configs
         let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, moveInterval: null, shockActive: false, timeLeft: 10, shockInt: null };
-        let lanCodeFound = null; // Stores code if LAN finds it
+        let freddyConfig = { ai: 5, timer: 23, maxTime: 23, freddles: 0, interval: null, lightCheckInt: null, stunned: false };
+        
         const ID_PREFIX = "fnaf-sys-";
         const victorySound = new Audio('sounds/victory/fnaf1.mp3');
+        const JUMPSCARE_BONNIE = "videos/Bonnie_jumpscare.mp4";
+        const JUMPSCARE_FREDDY = "videos/Freddy_jumpscare.mp4";
 
-        // --- STARTUP ---
         window.onload = () => {
             if (localStorage.getItem('fnaf_last_code')) document.getElementById('reconnect-btn').style.display = 'block';
             setInterval(checkForUpdates, 300000);
-            scanForLanMonitor(); // Start looking for monitor immediately
         };
-
-        // --- LAN DISCOVERY SYSTEM ---
-        async function getSafeIpId() {
-            try {
-                const ip = await (await fetch('https://api.ipify.org')).text();
-                return 'fnaf-disco-' + ip.replace(/\./g, '-');
-            } catch(e) { return null; }
-        }
-
-        // Monitor creates a "Beacon"
-        async function startLanBeacon(gameCode) {
-            const id = await getSafeIpId();
-            if (!id) return;
-            const beacon = new Peer(id);
-            beacon.on('connection', (conn) => {
-                conn.on('open', () => {
-                    conn.send({ type: 'DISCOVERY', code: gameCode });
-                    setTimeout(() => conn.close(), 1000); // Send and disconnect
-                });
-            });
-        }
-
-        // Camera looks for "Beacon"
-        async function scanForLanMonitor() {
-            const id = await getSafeIpId();
-            if (!id) return;
-            const scanner = new Peer(); 
-            scanner.on('open', () => {
-                const conn = scanner.connect(id);
-                conn.on('data', (data) => {
-                    if (data.type === 'DISCOVERY') {
-                        lanCodeFound = data.code;
-                        const btn = document.getElementById('lan-found-btn');
-                        btn.style.display = 'block';
-                        btn.innerText = `FOUND MONITOR (CODE: ${lanCodeFound})`;
-                    }
-                });
-                // If connection fails, no monitor on LAN. That's fine.
-                conn.on('error', () => {});
-            });
-        }
-
-        function connectLan() {
-            if(lanCodeFound) initCamera(lanCodeFound);
-        }
 
         async function checkForUpdates() {
             try {
@@ -244,14 +200,10 @@
             } catch (e) {}
         }
 
-        // --- MONITOR CORE ---
+        // --- MONITOR LOGIC ---
         async function initMonitor() {
             isMonitor = true;
-            try {
-                monitorMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
-                monitorMicStream.getAudioTracks()[0].enabled = false;
-            } catch(e) {}
-
+            try { monitorMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } }); monitorMicStream.getAudioTracks()[0].enabled = false; } catch(e){}
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             peer = new Peer(ID_PREFIX + code);
             peer.on('open', () => {
@@ -259,42 +211,51 @@
                 document.getElementById('monitor-ui').style.display = 'grid';
                 alert("OFFICE CODE: " + code);
                 startStaticLoop();
-                startLanBeacon(code); // Start broadcasting IP
             });
-
             peer.on('call', (call) => {
                 call.answer(monitorMicStream);
-                call.on('stream', (stream) => {
-                    const existing = nodeData[call.peer];
-                    stream.getAudioTracks().forEach(t => t.enabled = false);
-                    if (existing) {
-                        activeStreams[existing.label] = stream;
-                        existing.btn.classList.remove('lost');
-                        if (currentLabel === existing.label) switchCam(existing.label);
-                    } else {
-                        const label = `CAM-0${Object.keys(nodeData).length + 1}`;
-                        activeStreams[label] = stream;
-                        const btn = createBtn(label, call.peer);
-                        nodeData[call.peer] = { label, btn };
-                        if (!currentLabel) switchCam(label);
-                    }
-                });
+                call.on('stream', (stream) => { handleIncomingStream(call, stream); });
             });
+            peer.on('connection', (conn) => { handleDataConn(conn); });
+        }
 
-            peer.on('connection', (conn) => {
-                activeConns[conn.peer] = conn;
-                conn.on('open', () => {
+        function handleIncomingStream(call, stream) {
+            // Check if this is Freddy (Special Handling)
+            if (call.metadata && call.metadata.role === 'freddy') return; // Monitor doesn't view Freddy feed on grid
+
+            const existing = nodeData[call.peer];
+            stream.getAudioTracks().forEach(t => t.enabled = false);
+            if (existing) {
+                activeStreams[existing.label] = stream;
+                existing.btn.classList.remove('lost');
+                if (currentLabel === existing.label) switchCam(existing.label);
+            } else {
+                const label = `CAM-0${Object.keys(nodeData).length + 1}`;
+                activeStreams[label] = stream;
+                const btn = createBtn(label, call.peer);
+                nodeData[call.peer] = { label, btn };
+                if (!currentLabel) switchCam(label);
+            }
+        }
+
+        function handleDataConn(conn) {
+            activeConns[conn.peer] = conn;
+            conn.on('open', () => {
+                if (conn.metadata && conn.metadata.role === 'freddy') {
+                    // It's Freddy
+                    conn.send({ type: 'ASSIGN', label: 'FREDDY' });
+                } else {
                     conn.send({ type: 'ASSIGN', label: nodeData[conn.peer]?.label || "CAM-??" });
-                    conn.send({ type: 'TIME_SYNC', time: currentHour + " AM" });
-                });
-                conn.on('close', () => {
-                    const data = nodeData[conn.peer];
-                    if (data) {
-                        data.btn.classList.add('lost');
-                        if (currentLabel === data.label) showSignalLost(true);
-                    }
-                    delete activeConns[conn.peer];
-                });
+                }
+                conn.send({ type: 'TIME_SYNC', time: currentHour + " AM" });
+            });
+            conn.on('data', (data) => {
+                if (data.type === 'JUMPSCARE_FREDDY') triggerJumpscare(JUMPSCARE_FREDDY);
+            });
+            conn.on('close', () => {
+                const data = nodeData[conn.peer];
+                if (data) { data.btn.classList.add('lost'); if (currentLabel === data.label) showSignalLost(true); }
+                delete activeConns[conn.peer];
             });
         }
 
@@ -310,10 +271,8 @@
             currentLabel = label;
             const pId = Object.keys(nodeData).find(k => nodeData[k].label === label);
             Object.keys(activeStreams).forEach(k => activeStreams[k].getAudioTracks().forEach(t => t.enabled = (k === label)));
-
-            if (!activeConns[pId]) {
-                showSignalLost(true);
-            } else {
+            if (!activeConns[pId]) showSignalLost(true);
+            else {
                 showSignalLost(false);
                 document.getElementById('video-feed').srcObject = activeStreams[label];
                 Object.values(activeConns).forEach(c => c.send({ type: 'WATCH', id: label }));
@@ -321,16 +280,9 @@
             document.getElementById('cam-label').innerText = label;
             document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
             if(document.getElementById('btn-'+label)) document.getElementById('btn-'+label).classList.add('active');
-            
             checkBonnie();
-
-            const canv = document.getElementById('static-canvas');
-            canv.style.opacity = "0.7";
-            setTimeout(() => { 
-                if (!bonnieConfig.shockActive && document.getElementById('gameover-screen').style.display !== 'flex') {
-                    canv.style.opacity = "0.08"; 
-                }
-            }, 300);
+            const canv = document.getElementById('static-canvas'); canv.style.opacity = "0.7";
+            setTimeout(() => { if (!bonnieConfig.shockActive && document.getElementById('gameover-screen').style.display !== 'flex') canv.style.opacity = "0.08"; }, 300);
         }
 
         function showSignalLost(lost) {
@@ -342,7 +294,7 @@
         function startTalk() { if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = true; document.getElementById('talk-btn').classList.add('active'); }
         function stopTalk() { if (monitorMicStream) monitorMicStream.getAudioTracks()[0].enabled = false; document.getElementById('talk-btn').classList.remove('active'); }
 
-        // --- NIGHT LOGIC ---
+        // --- NIGHT TIMER ---
         function toggleTimer() {
             if (!isMonitor) return;
             nightRunning = !nightRunning;
@@ -351,7 +303,16 @@
                 currentHour = 12; startTime = Date.now();
                 btn.innerText = "STOP NIGHT (F4)"; btn.classList.add('running');
                 timerInterval = setInterval(updateTimer, 1000);
-                if (document.getElementById('setting-bonnie-mode').value === 'robot') startBonnieAI();
+                
+                // Sync Settings
+                const fAi = parseInt(document.getElementById('setting-freddy-ai').value);
+                const bAi = parseInt(document.getElementById('setting-bonnie-ai').value);
+                const bMode = document.getElementById('setting-bonnie-mode').value;
+                
+                Object.values(activeConns).forEach(c => c.send({ type: 'START_NIGHT', freddyAi: fAi }));
+                
+                bonnieConfig.ai = bAi; bonnieConfig.mode = bMode;
+                if (bonnieConfig.mode === 'robot') startBonnieAI();
             } else {
                 stopNightLogic();
             }
@@ -361,18 +322,16 @@
             nightRunning = false;
             clearInterval(timerInterval);
             stopBonnieAI();
-            const btn = document.getElementById('timer-control-btn');
-            btn.innerText = "START NIGHT (F4)";
-            btn.classList.remove('running');
+            document.getElementById('timer-control-btn').innerText = "START NIGHT (F4)";
+            document.getElementById('timer-control-btn').classList.remove('running');
+            Object.values(activeConns).forEach(c => c.send({ type: 'STOP_NIGHT' }));
         }
 
         function updateTimer() {
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
             const mins = Math.floor(elapsed / 60);
             let hr = (mins === 0) ? 12 : mins;
-            
             if (mins >= 6) { hr = 6; clearInterval(timerInterval); triggerWin(); }
-
             if (hr !== currentHour) {
                 currentHour = hr;
                 document.getElementById('clock-display').innerText = `${hr} AM`;
@@ -383,27 +342,13 @@
         function triggerWin() {
             stopNightLogic();
             victorySound.play().catch(e=>{});
-            const w = document.getElementById('win-screen');
-            w.style.display = 'flex';
-            setTimeout(() => { w.style.opacity = 1; }, 100);
+            const w = document.getElementById('win-screen'); w.style.display = 'flex';
+            setTimeout(() => w.style.opacity = 1, 100);
             Object.values(activeConns).forEach(c => c.send({ type: 'WIN' }));
-            
-            setTimeout(() => {
-                w.style.opacity = 0;
-                setTimeout(() => { w.style.display = 'none'; }, 1000);
-            }, 11000);
+            setTimeout(() => { w.style.opacity = 0; setTimeout(() => w.style.display = 'none', 1000); }, 11000);
         }
 
         // --- BONNIE AI ---
-        function openSettings() { document.getElementById('settings-overlay').style.display = 'block'; }
-        function closeSettings() {
-            bonnieConfig.mode = document.getElementById('setting-bonnie-mode').value;
-            bonnieConfig.ai = parseInt(document.getElementById('setting-bonnie-ai').value);
-            document.getElementById('settings-overlay').style.display = 'none';
-            if (nightRunning && bonnieConfig.mode === 'robot') startBonnieAI(); else stopBonnieAI();
-            checkBonnie();
-        }
-
         function startBonnieAI() {
             clearInterval(bonnieConfig.moveInterval);
             bonnieConfig.moveInterval = setInterval(() => {
@@ -418,40 +363,36 @@
                 }
             }, 5000);
         }
-
         function triggerShock() {
-            bonnieConfig.shockActive = true;
-            bonnieConfig.timeLeft = 10;
+            bonnieConfig.shockActive = true; bonnieConfig.timeLeft = 10;
             document.getElementById('shock-btn').style.display = 'block';
             document.getElementById('shock-timer').style.display = 'block';
             document.getElementById('static-canvas').style.opacity = "0.5";
-            
             clearInterval(bonnieConfig.shockInt);
             bonnieConfig.shockInt = setInterval(() => {
                 bonnieConfig.timeLeft--;
                 document.getElementById('shock-timer').innerText = bonnieConfig.timeLeft;
-                if (bonnieConfig.timeLeft <= 0) triggerJumpscare();
+                if (bonnieConfig.timeLeft <= 0) triggerJumpscare(JUMPSCARE_BONNIE);
             }, 1000);
         }
-
         function shockBonnie() {
             if (currentLabel !== bonnieConfig.currentCam) return;
-            const flash = document.getElementById('white-flash');
-            flash.style.display = 'block';
-            setTimeout(() => { flash.style.display = 'none'; }, 100);
-
-            bonnieConfig.shockActive = false;
-            clearInterval(bonnieConfig.shockInt);
+            const flash = document.getElementById('white-flash'); flash.style.display = 'block';
+            setTimeout(() => flash.style.display = 'none', 100);
+            bonnieConfig.shockActive = false; clearInterval(bonnieConfig.shockInt);
             document.getElementById('shock-btn').style.display = 'none';
             document.getElementById('shock-timer').style.display = 'none';
             document.getElementById('static-canvas').style.opacity = "0.08";
-            bonnieConfig.currentCam = null;
-            checkBonnie();
+            bonnieConfig.currentCam = null; checkBonnie();
         }
+        function stopBonnieAI() { clearInterval(bonnieConfig.moveInterval); clearInterval(bonnieConfig.shockInt); }
+        function checkBonnie() { document.getElementById('bonnie-overlay').style.display = (bonnieConfig.mode === 'robot' && bonnieConfig.currentCam === currentLabel) ? 'block' : 'none'; }
 
-        function triggerJumpscare() {
+        // --- JUMPSCARE SYSTEM ---
+        function triggerJumpscare(videoPath) {
             stopNightLogic();
             const vid = document.getElementById('jumpscare-video');
+            vid.src = videoPath; // Set correct video
             const overlay = document.getElementById('jumpscare-overlay');
             const gameOver = document.getElementById('gameover-screen');
             const staticCanv = document.getElementById('static-canvas');
@@ -459,36 +400,13 @@
 
             gameOver.style.opacity = "1";
             overlay.style.display = 'block';
-            vid.currentTime = 0;
-            vid.play().catch(e => {});
+            vid.currentTime = 0; vid.play().catch(e => {});
 
-            // Effects overlap (1.5s in)
-            setTimeout(() => {
-                flash.style.display = 'block';
-                staticCanv.style.zIndex = "40002";
-                staticCanv.style.opacity = "0.9";
-            }, 1500);
-
-            // Cut to Black (2.5s in)
-            setTimeout(() => {
-                vid.pause();
-                overlay.style.display = 'none';
-                gameOver.style.display = 'flex';
-                Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' }));
-            }, 2500);
-
-            // Reveal Text (3.0s in)
-            setTimeout(() => {
-                flash.style.display = 'none';
-                staticCanv.style.zIndex = "10";
-                staticCanv.style.opacity = "0.08";
-            }, 3000);
-
-            // Reset (7.0s in)
-            setTimeout(() => {
-                gameOver.style.opacity = 0;
-                setTimeout(() => { restartNight(); }, 500);
-            }, 7000);
+            // Effects
+            setTimeout(() => { flash.style.display = 'block'; staticCanv.style.zIndex = "40002"; staticCanv.style.opacity = "0.9"; }, 1500);
+            setTimeout(() => { vid.pause(); overlay.style.display = 'none'; gameOver.style.display = 'flex'; Object.values(activeConns).forEach(c => c.send({ type: 'GAMEOVER' })); }, 2000);
+            setTimeout(() => { flash.style.display = 'none'; staticCanv.style.zIndex = "10"; staticCanv.style.opacity = "0.08"; }, 3000);
+            setTimeout(() => { gameOver.style.opacity = 0; setTimeout(() => restartNight(), 500); }, 7000);
         }
 
         function restartNight() {
@@ -504,48 +422,175 @@
             Object.values(activeConns).forEach(c => c.send({ type: 'RESET' }));
         }
 
-        function stopBonnieAI() { clearInterval(bonnieConfig.moveInterval); clearInterval(bonnieConfig.shockInt); }
-        function checkBonnie() { document.getElementById('bonnie-overlay').style.display = (bonnieConfig.mode === 'robot' && bonnieConfig.currentCam === currentLabel) ? 'block' : 'none'; }
-
-        // --- CAMERA ROLE ---
+        // --- STANDARD CAMERA ROLE ---
         async function initCamera(reconnectCode = null) {
             const code = reconnectCode || document.getElementById('join-code').value;
             if (code.length !== 6) return;
+            setupPeer(code, 'camera');
+        }
+
+        // --- FREDDY ROLE ---
+        async function initFreddy() {
+            const code = document.getElementById('join-code').value;
+            if (code.length !== 6) return;
+            isFreddy = true;
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('freddy-ui').style.display = 'flex';
+            setupPeer(code, 'freddy');
+            startFreddyLightDetection();
+        }
+
+        async function setupPeer(code, role) {
             try {
                 if ('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } });
-                localStorage.setItem('fnaf_last_code', code);
-                const pId = localStorage.getItem('fnaf_p_id') || 'n-' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('fnaf_p_id', pId);
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "environment" } });
+                
+                // If Freddy, attach stream to hidden video for light detection
+                if (role === 'freddy') document.getElementById('freddy-cam-feed').srcObject = stream;
 
-                peer = new Peer(pId);
+                localStorage.setItem('fnaf_last_code', code);
+                peer = new Peer();
+                
                 peer.on('open', () => {
-                    document.getElementById('setup').style.display = 'none';
-                    document.getElementById('camera-ui').style.display = 'flex';
-                    const call = peer.call(ID_PREFIX + code, stream);
-                    call.on('stream', (rs) => { document.getElementById('intercom-audio').srcObject = rs; document.getElementById('intercom-audio').muted = true; });
-                    const conn = peer.connect(ID_PREFIX + code);
-                    conn.on('data', (d) => {
-                        if (d.type === 'ASSIGN') document.getElementById('my-node-label').innerText = "NODE: " + d.label;
-                        if (d.type === 'TIME_SYNC') document.getElementById('phone-clock').innerText = d.time;
-                        if (d.type === 'WIN') { 
-                            victorySound.play().catch(e=>{});
-                            const w = document.getElementById('win-screen');
-                            w.style.display = 'flex'; setTimeout(()=>{ w.style.opacity = 1; },100);
-                            setTimeout(()=>{ w.style.opacity = 0; setTimeout(()=>{w.style.display='none'},1000); },11000);
-                        }
-                        if (d.type === 'GAMEOVER') { document.getElementById('gameover-screen').style.display = 'flex'; document.getElementById('camera-ui').style.display = 'none'; }
-                        if (d.type === 'RESET') { document.getElementById('gameover-screen').style.display = 'none'; document.getElementById('camera-ui').style.display = 'flex'; document.getElementById('phone-clock').innerText = "12 AM"; }
-                        if (d.type === 'WATCH') {
-                            const myL = document.getElementById('my-node-label').innerText.split(': ')[1];
-                            const watched = (d.id === myL);
-                            document.getElementById('watched-dot').style.visibility = watched ? 'visible' : 'hidden';
-                            document.getElementById('intercom-audio').muted = !watched;
-                        }
+                    if (role === 'camera') {
+                        document.getElementById('setup').style.display = 'none';
+                        document.getElementById('camera-ui').style.display = 'flex';
+                    }
+                    const call = peer.call(ID_PREFIX + code, stream, { metadata: { role: role } });
+                    call.on('stream', (rs) => { 
+                        // Intercom audio
+                        const audio = document.getElementById(role === 'freddy' ? 'freddy-cam-feed' : 'intercom-audio');
+                        // Freddy doesn't need audio output, Cameras do
+                        if (role === 'camera') { audio.srcObject = rs; audio.muted = true; }
                     });
+                    const conn = peer.connect(ID_PREFIX + code, { metadata: { role: role } });
+                    conn.on('data', (d) => handleClientData(d, role));
                 });
-            } catch (e) { alert("Camera Permission Denied"); }
+            } catch (e) { alert("Permission Denied"); }
         }
+
+        function handleClientData(d, role) {
+            if (role === 'camera') {
+                if (d.type === 'ASSIGN') document.getElementById('my-node-label').innerText = "NODE: " + d.label;
+                if (d.type === 'WATCH') { 
+                    const myL = document.getElementById('my-node-label').innerText.split(': ')[1];
+                    const w = (d.id === myL);
+                    document.getElementById('watched-dot').style.visibility = w ? 'visible' : 'hidden';
+                    document.getElementById('intercom-audio').muted = !w;
+                }
+            }
+            if (d.type === 'TIME_SYNC') {
+                if (role === 'camera') document.getElementById('phone-clock').innerText = d.time;
+            }
+            if (d.type === 'WIN') { 
+                victorySound.play().catch(e=>{});
+                const w = document.getElementById('win-screen');
+                w.style.display = 'flex'; setTimeout(()=>w.style.opacity=1,100);
+                setTimeout(()=> { w.style.opacity=0; setTimeout(()=>w.style.display='none',1000); },11000);
+            }
+            if (d.type === 'GAMEOVER') {
+                document.getElementById('gameover-screen').style.display = 'flex';
+                if(role==='camera') document.getElementById('camera-ui').style.display = 'none';
+                if(role==='freddy') document.getElementById('freddy-ui').style.display = 'none';
+            }
+            if (d.type === 'RESET') {
+                document.getElementById('gameover-screen').style.display = 'none';
+                if(role==='camera') { document.getElementById('camera-ui').style.display = 'flex'; document.getElementById('phone-clock').innerText="12 AM"; }
+                if(role==='freddy') { document.getElementById('freddy-ui').style.display = 'flex'; resetFreddy(); }
+            }
+            
+            // Freddy Logic
+            if (role === 'freddy') {
+                if (d.type === 'START_NIGHT') {
+                    freddyConfig.timer = 23 - d.freddyAi;
+                    freddyConfig.maxTime = 23 - d.freddyAi;
+                    freddyConfig.freddles = 0;
+                    document.getElementById('freddy-status').innerText = "ATTACKING...";
+                    startFreddyLoop();
+                }
+                if (d.type === 'STOP_NIGHT') {
+                    stopFreddyLoop();
+                    document.getElementById('freddy-status').innerText = "NIGHT ENDED";
+                }
+            }
+        }
+
+        // --- FREDDY GAMEPLAY LOOP ---
+        function startFreddyLightDetection() {
+            const vid = document.getElementById('freddy-cam-feed');
+            const cvs = document.getElementById('light-detect-canvas');
+            const ctx = cvs.getContext('2d');
+            
+            freddyConfig.lightCheckInt = setInterval(() => {
+                if (vid.readyState === 4) {
+                    cvs.width = 50; cvs.height = 50; // Low res for speed
+                    ctx.drawImage(vid, 0, 0, 50, 50);
+                    const data = ctx.getImageData(0,0,50,50).data;
+                    let brightnessSum = 0;
+                    for(let i=0; i<data.length; i+=4) {
+                        brightnessSum += (data[i] + data[i+1] + data[i+2]) / 3;
+                    }
+                    const avg = brightnessSum / (50*50);
+                    
+                    // Threshold for flashlight directly in camera (very high)
+                    if (avg > 230) {
+                        if (!freddyConfig.stunned) {
+                            freddyConfig.stunned = true;
+                            // Reset timer
+                            freddyConfig.timer = freddyConfig.maxTime;
+                            document.getElementById('light-warning').style.display = 'block';
+                        }
+                        // Remove freddles while stunned (1 per sec roughly)
+                        // We use a small chance per frame to simulate 1s rate without complex timers
+                        if (Math.random() < 0.1 && freddyConfig.freddles > 0) {
+                            freddyConfig.freddles--;
+                            updateFreddyUI();
+                        }
+                    } else {
+                        freddyConfig.stunned = false;
+                        document.getElementById('light-warning').style.display = 'none';
+                    }
+                }
+            }, 100);
+        }
+
+        function startFreddyLoop() {
+            clearInterval(freddyConfig.interval);
+            updateFreddyUI();
+            
+            freddyConfig.interval = setInterval(() => {
+                if (freddyConfig.stunned) return; // Frozen by light
+
+                freddyConfig.timer--;
+                
+                // Visual update for timer bar
+                const pct = (freddyConfig.timer / freddyConfig.maxTime) * 100;
+                document.getElementById('freddy-timer-fill').style.width = pct + "%";
+
+                if (freddyConfig.timer <= 0) {
+                    // Timeout! Place Freddle or Jumpscare
+                    if (freddyConfig.freddles >= 3) {
+                        // 4th Freddle = Jumpscare
+                        // Send Jumpscare signal to Monitor
+                        Object.values(activeConns).forEach(c => c.send({ type: 'JUMPSCARE_FREDDY' }));
+                        stopFreddyLoop();
+                    } else {
+                        // Pause 1s then place
+                        setTimeout(() => {
+                            if (!freddyConfig.stunned) {
+                                freddyConfig.freddles++;
+                                updateFreddyUI();
+                                freddyConfig.timer = freddyConfig.maxTime;
+                            }
+                        }, 1000);
+                    }
+                }
+            }, 1000);
+        }
+
+        function stopFreddyLoop() { clearInterval(freddyConfig.interval); }
+        function resetFreddy() { freddyConfig.freddles = 0; updateFreddyUI(); }
+        function updateFreddyUI() { document.getElementById('freddle-count').innerText = `FREDDLES: ${freddyConfig.freddles}/3`; }
 
         // --- UTILS ---
         function startStaticLoop() {
@@ -553,10 +598,17 @@
             function n() {
                 canvas.width = window.innerWidth; canvas.height = window.innerHeight;
                 const id = ctx.createImageData(canvas.width, canvas.height); const b32 = new Uint32Array(id.data.buffer);
-                for (let i = 0; i < b32.length; i++) if (Math.random() < 0.5) b32[i] = 0xffffffff;
+                for (let i=0; i<b32.length; i++) if (Math.random() < 0.5) b32[i] = 0xffffffff;
                 ctx.putImageData(id, 0, 0); requestAnimationFrame(n);
             }
             n();
+        }
+        function openSettings() { document.getElementById('settings-overlay').style.display = 'block'; }
+        function closeSettings() {
+            bonnieConfig.mode = document.getElementById('setting-bonnie-mode').value;
+            bonnieConfig.ai = parseInt(document.getElementById('setting-bonnie-ai').value);
+            document.getElementById('settings-overlay').style.display = 'none';
+            checkBonnie();
         }
         function reconnectLast() { initCamera(localStorage.getItem('fnaf_last_code')); }
         function enableStealth() { document.documentElement.requestFullscreen(); document.getElementById('stealth-screen').style.display = 'block'; }
