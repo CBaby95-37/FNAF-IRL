@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="version" content="20251229-V35-AI-FIX">
-    <title>Fazbear Surveillance - v35.0 FINAL</title>
+    <meta name="version" content="20251229-V36-SPLIT-LOGIC">
+    <title>Fazbear Surveillance - v36.0 FINAL</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --fnaf-green: #00ff41; --fnaf-red: #8b0000; --fnaf-blue: #0041ff; --fnaf-yellow: #f1c40f; }
@@ -184,7 +184,7 @@
         let isMonitor = false, isFreddy = false, monitorMicStream = null, nightRunning = false;
         let startTime = null, timerInterval = null, currentHour = 12;
         
-        let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, moveInterval: null, shockActive: false, timeLeft: 10, shockInt: null, manualScanInt: null, rushing: false };
+        let bonnieConfig = { mode: 'off', ai: 5, currentCam: null, robotInt: null, manualScanInt: null, shockActive: false, timeLeft: 10, shockInt: null, rushing: false };
         let freddyConfig = { ai: 5, timer: 23, maxTime: 23, freddles: 0, interval: null, lightCheckInt: null, stunned: false };
         let monitorConn = null, lanCodeFound = null;
         
@@ -198,13 +198,14 @@
             setInterval(checkForUpdates, 300000); scanForLanMonitor();
         };
 
-        // --- LAN & CORE ---
+        // --- LAN DISCOVERY ---
         async function getSafeIpId() { try { const ip = await (await fetch('https://api.ipify.org')).text(); return 'fnaf-disco-' + ip.replace(/\./g, '-'); } catch(e) { return null; } }
         async function startLanBeacon(code) { const id = await getSafeIpId(); if(!id) return; const b = new Peer(id); b.on('connection', c=>{ c.on('open', ()=>{ c.send({type:'DISCOVERY',code:code}); setTimeout(()=>c.close(),1000); }); }); }
         async function scanForLanMonitor() { const id = await getSafeIpId(); if(!id) return; const s = new Peer(); s.on('open', ()=>{ const c = s.connect(id); c.on('data', d=>{ if(d.type==='DISCOVERY'){ lanCodeFound = d.code; document.getElementById('lan-found-btn').style.display='block'; document.getElementById('lan-found-btn').innerText=`FOUND MONITOR (${d.code})`; } }); c.on('error', ()=>{}); }); }
         function connectLan() { if(lanCodeFound) initCamera(lanCodeFound); }
         async function checkForUpdates() { try { const res = await fetch(window.location.href, { method: 'GET', cache: 'no-cache' }); const text = await res.text(); const remote = text.match(/meta name="version" content="(.*?)"/); const local = document.querySelector('meta[name="version"]').content; if (remote && remote[1] !== local) document.getElementById('update-modal').style.display = 'block'; } catch (e) {} }
 
+        // --- MONITOR CORE ---
         async function initMonitor() {
             isMonitor = true;
             try { monitorMicStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } }); monitorMicStream.getAudioTracks()[0].enabled = false; } catch(e){}
@@ -299,11 +300,11 @@
         // --- NIGHT TIMER ---
         function toggleTimer() {
             if (!isMonitor) return;
-            nightRunning = !nightRunning;
-            const btn = document.getElementById('timer-control-btn');
-            if (nightRunning) {
+            if (!nightRunning) {
+                nightRunning = true;
                 currentHour = 12; startTime = Date.now();
-                btn.innerText = "STOP NIGHT (F4)"; btn.classList.add('running');
+                document.getElementById('timer-control-btn').innerText = "STOP NIGHT (F4)";
+                document.getElementById('timer-control-btn').classList.add('running');
                 timerInterval = setInterval(updateTimer, 1000);
                 
                 const fAi = parseInt(document.getElementById('setting-freddy-ai').value);
@@ -311,11 +312,10 @@
                 const bMode = document.getElementById('setting-bonnie-mode').value;
                 
                 Object.values(activeConns).forEach(c => c.send({ type: 'START_NIGHT', freddyAi: fAi }));
-                bonnieConfig.ai = bAi; bonnieConfig.mode = bMode;
                 
-                // Initialize AI logic
-                startBonnieAI(); 
-                if (bMode === 'manual') startPurpleTracking();
+                bonnieConfig.ai = bAi; bonnieConfig.mode = bMode;
+                if (bonnieConfig.mode === 'robot') startRobotBonnie();
+                else if (bonnieConfig.mode === 'manual') startManualBonnie();
             } else {
                 stopNightLogic();
             }
@@ -324,8 +324,18 @@
         function stopNightLogic() {
             nightRunning = false;
             clearInterval(timerInterval);
-            stopBonnieAI();
+            
+            // Stop All Bonnie Logic
+            clearInterval(bonnieConfig.robotInt);
             clearInterval(bonnieConfig.manualScanInt);
+            clearInterval(bonnieConfig.shockInt);
+            bonnieConfig.shockActive = false;
+            bonnieConfig.rushing = false;
+            bonnieConfig.currentCam = null;
+            document.getElementById('shock-btn').style.display = 'none';
+            document.getElementById('shock-timer').style.display = 'none';
+            checkBonnie();
+
             document.getElementById('timer-control-btn').innerText = "START NIGHT (F4)";
             document.getElementById('timer-control-btn').classList.remove('running');
             Object.values(activeConns).forEach(c => c.send({ type: 'STOP_NIGHT' }));
@@ -352,85 +362,78 @@
             setTimeout(() => { w.style.opacity = 0; setTimeout(() => w.style.display = 'none', 1000); }, 11000);
         }
 
-        // --- BONNIE AI LOGIC ---
-        function startBonnieAI() {
-            clearInterval(bonnieConfig.moveInterval);
-            bonnieConfig.moveInterval = setInterval(() => {
-                // If currently attacking or rushing, do not start a new attack
-                if (bonnieConfig.shockActive || bonnieConfig.rushing) return;
-
-                // Determine if we should attempt an attack roll
-                let canAttack = false;
-                
-                if (bonnieConfig.mode === 'robot') {
-                    // Robot Logic: 50/50 move randomly, then check attack
-                    if (Math.random() > 0.5) {
-                        const keys = Object.keys(activeStreams);
-                        if (keys.length > 0) {
-                            bonnieConfig.currentCam = keys[Math.floor(Math.random() * keys.length)];
-                            checkBonnie();
-                        }
+        // --- SPLIT BONNIE LOGIC ---
+        function startRobotBonnie() {
+            clearInterval(bonnieConfig.robotInt);
+            bonnieConfig.robotInt = setInterval(() => {
+                if (bonnieConfig.shockActive) return;
+                // Move logic
+                if (Math.random() > 0.5) {
+                    const keys = Object.keys(activeStreams);
+                    if (keys.length > 0) {
+                        bonnieConfig.currentCam = keys[Math.floor(Math.random() * keys.length)];
+                        checkBonnie();
                     }
-                    // Only attack if visible to camera
-                    if (bonnieConfig.currentCam) canAttack = true;
-                } 
-                else if (bonnieConfig.mode === 'manual') {
-                    // Manual Logic: Only attack if detected by Purple Tracker
-                    if (bonnieConfig.currentCam) canAttack = true;
-                    // Play beep for manual player to know they can move
-                    Object.values(activeConns).forEach(c => c.send({ type: 'BONNIE_BEEP' }));
                 }
-
-                // AI Roll to Trigger Shock
-                if (canAttack) {
-                    if (Math.floor(Math.random() * 20) + 1 <= bonnieConfig.ai) {
-                        triggerShock();
-                    }
+                // Attack logic
+                if (bonnieConfig.currentCam && Math.floor(Math.random() * 20) + 1 <= bonnieConfig.ai) {
+                    triggerShock();
                 }
             }, 5000);
         }
 
-        // --- PURPLE TRACKING (MANUAL MODE) ---
-        function startPurpleTracking() {
+        function startManualBonnie() {
             clearInterval(bonnieConfig.manualScanInt);
             const cvs = document.getElementById('cv-canvas'); const ctx = cvs.getContext('2d');
             
             bonnieConfig.manualScanInt = setInterval(() => {
-                let foundOnCurrent = false;
-                
-                // Only scan active feed if we aren't already rushing
-                if (currentLabel && !bonnieConfig.rushing) {
-                    const mainVid = document.getElementById('video-feed');
-                    if (mainVid.readyState === 4) {
-                        cvs.width = 50; cvs.height = 50; ctx.drawImage(mainVid, 0, 0, 50, 50);
-                        const d = ctx.getImageData(0,0,50,50).data;
-                        let count = 0;
-                        for(let i=0; i<d.length; i+=4) if (d[i]>60 && d[i+2]>60 && d[i+1]<100 && d[i]>d[i+1]+20 && d[i+2]>d[i+1]+20) count++;
-                        if (count > 50) foundOnCurrent = true;
+                // If shock is active or rushing, stop scanning for position
+                if (bonnieConfig.shockActive || bonnieConfig.rushing) {
+                    // Check Rush Mechanic
+                    if (bonnieConfig.rushing) {
+                        // If rushing, we verify he LEFT the camera.
+                        if (!detectPurpleOnFeed(cvs, ctx)) {
+                            triggerJumpscare(JUMPSCARE_BONNIE); // Left cam -> Jumpscare
+                        }
                     }
+                    return;
                 }
 
-                if (foundOnCurrent) {
+                // Normal scanning
+                if (detectPurpleOnFeed(cvs, ctx)) {
                     bonnieConfig.currentCam = currentLabel;
                 } else {
                     bonnieConfig.currentCam = null;
                 }
-                
                 checkBonnie();
                 updateShockUI();
 
-                // RUSH FAIL CONDITION: If Rushing AND Not Seen -> Jumpscare
-                if (bonnieConfig.rushing && !bonnieConfig.currentCam) {
-                    triggerJumpscare(JUMPSCARE_BONNIE);
+                // Roll for attack if visible (Manual AI Logic)
+                // We use a counter or random chance here since this loop is fast (500ms)
+                if (bonnieConfig.currentCam && Math.random() < 0.05 * (bonnieConfig.ai/20)) {
+                    triggerShock();
                 }
 
             }, 500);
         }
 
+        function detectPurpleOnFeed(cvs, ctx) {
+            if (!currentLabel) return false;
+            const mainVid = document.getElementById('video-feed');
+            if (mainVid.readyState === 4) {
+                cvs.width = 50; cvs.height = 50; ctx.drawImage(mainVid, 0, 0, 50, 50);
+                const d = ctx.getImageData(0,0,50,50).data;
+                let count = 0;
+                for(let i=0; i<d.length; i+=4) if (d[i]>60 && d[i+2]>60 && d[i+1]<100 && d[i]>d[i+1]+20 && d[i+2]>d[i+1]+20) count++;
+                return count > 50;
+            }
+            return false;
+        }
+
         function triggerShock() {
             bonnieConfig.shockActive = true; bonnieConfig.timeLeft = 10;
             
-            // Audio Cue for Attack Start
+            // Audio Alarm
             Object.values(activeConns).forEach(c => c.send({ type: 'BONNIE_BEEP' }));
 
             updateShockUI();
@@ -439,31 +442,24 @@
             
             clearInterval(bonnieConfig.shockInt);
             bonnieConfig.shockInt = setInterval(() => {
-                // Pause Timer if Hidden (Manual Mode) or Not Looking (All Modes)
-                const isLooking = (currentLabel === bonnieConfig.currentCam);
-                const isHidden = (bonnieConfig.mode === 'manual' && !bonnieConfig.currentCam);
-                
-                if (!isLooking || isHidden) return; 
+                // Manual Pause Logic
+                if (bonnieConfig.mode === 'manual' && !bonnieConfig.currentCam) return;
 
                 bonnieConfig.timeLeft--;
                 document.getElementById('shock-timer').innerText = bonnieConfig.timeLeft;
                 
                 if (bonnieConfig.timeLeft <= 0) {
-                    // Time Out -> Rush Mode
                     clearInterval(bonnieConfig.shockInt);
                     bonnieConfig.shockActive = false;
-                    
                     document.getElementById('shock-timer').style.display = 'none';
                     document.getElementById('shock-btn').style.display = 'none';
                     document.getElementById('static-canvas').style.opacity = "0.08";
                     
                     if (bonnieConfig.mode === 'robot') {
-                        // Robot instantly teleports away -> Jumpscare
-                        bonnieConfig.currentCam = null;
-                        checkBonnie();
-                        setTimeout(() => triggerJumpscare(JUMPSCARE_BONNIE), 1500);
+                        // Robot instantly attacks
+                        triggerJumpscare(JUMPSCARE_BONNIE);
                     } else {
-                        // Manual enters Rush phase (waiting for player to hide)
+                        // Manual enters RUSH phase
                         bonnieConfig.rushing = true;
                     }
                 }
@@ -515,8 +511,7 @@
             const staticCanv = document.getElementById('static-canvas');
             const flash = document.getElementById('white-flash');
 
-            gameOver.style.opacity = "1";
-            overlay.style.display = 'block';
+            gameOver.style.opacity = "1"; overlay.style.display = 'block';
             vid.currentTime = 0; vid.play().catch(e => {});
 
             setTimeout(() => { flash.style.display = 'block'; staticCanv.style.zIndex = "40002"; staticCanv.style.opacity = "0.9"; }, 1500);
@@ -530,8 +525,7 @@
             document.getElementById('gameover-screen').style.opacity = "1";
             document.getElementById('clock-display').innerText = "12 AM";
             currentHour = 12;
-            stopBonnieAI();
-            bonnieConfig.shockActive = false; bonnieConfig.rushing = false;
+            stopNightLogic(); // Ensure clean slate
             document.getElementById('shock-btn').style.display = 'none';
             document.getElementById('shock-timer').style.display = 'none';
             document.getElementById('static-canvas').style.opacity = "0.08";
